@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sandbox Render</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        background-color: #ffffff;
+        color: #0f172a;
+      }
+      iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background-color: #ffffff;
+      }
+      .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        color: #64748b;
+        background-color: #ffffff;
+      }
+    </style>
+
+  </head>
+  <body>
+    <div id="loading" class="loading">Waiting for content...</div>
+    <iframe id="content" style="display: none"></iframe>
+    <script>
+      const loadingEl = document.getElementById("loading");
+      const contentEl = document.getElementById("content");
+
+      // Preload local tailwind.js for offline & zero-CSP execution
+      let localTailwindScript = "";
+      fetch("./tailwind.js")
+        .then((r) => r.text())
+        .then((t) => {
+          localTailwindScript = t;
+        })
+        .catch((e) => {
+          console.warn("Notice: local tailwind.js fallback to relative path", e);
+        });
+
+      // Map to track pending requests and their source window
+      const pendingRequests = new Map();
+
+      // VFS Bridge client script injected into the rendered page
+      const VFS_BRIDGE_SCRIPT = `<script>
+(function() {
+  const pending = new Map();
+
+  function sendRequest(type, payload) {
+    return new Promise((resolve, reject) => {
+      const id = 'vfs_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
+      pending.set(id, { resolve, reject });
+      window.parent.postMessage({ type, id, ...payload }, '*');
+    });
+  }
+
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (data && data.id && pending.has(data.id)) {
+      const { resolve, reject } = pending.get(data.id);
+      pending.delete(data.id);
+      if (data.success) {
+        if (data.type === 'FS_READ_RESPONSE') resolve(data.content);
+        else if (data.type === 'FS_WRITE_RESPONSE') resolve();
+        else if (data.type === 'FS_LIST_RESPONSE') resolve(data.entries);
+        else if (data.type === 'FS_EXISTS_RESPONSE') resolve(data.exists);
+        else resolve(data);
+      } else {
+        reject(new Error(data.error || 'VFS Operation Failed'));
+      }
+    }
+  });
+
+  const vfs = {
+    readFile: function(path) {
+      return sendRequest('FS_READ_REQUEST', { path });
+    },
+    writeFile: function(path, content) {
+      return sendRequest('FS_WRITE_REQUEST', { path, content });
+    },
+    listFiles: function(path) {
+      return sendRequest('FS_LIST_REQUEST', { path: path || '/' });
+    },
+    exists: function(path) {
+      return sendRequest('FS_EXISTS_REQUEST', { path });
+    }
+  };
+
+  window.readFile = vfs.readFile;
+  window.writeFile = vfs.writeFile;
+  window.listFiles = vfs.listFiles;
+  window.exists = vfs.exists;
+  window.fs = vfs;
+})();
+<\/script>`;
+
+      function wrapRawSnippet(content) {
+        const tailwindTag = localTailwindScript
+          ? `<script>${localTailwindScript}<\/script>`
+          : `<script src="./tailwind.js"><\/script>`;
+
+        return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  ${tailwindTag}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body { margin: 0; padding: 1rem; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #ffffff; color: #0f172a; }
+  </style>
+</head>
+<body>
+  ${content}
+</body>
+</html>`;
+      }
+
+      function injectVfsBridge(rawHtml) {
+        if (!rawHtml || typeof rawHtml !== "string") return "";
+
+        const trimmed = rawHtml.trim();
+        const isCompleteDoc = /<html[^>]*>/i.test(trimmed) || /<!doctype html>/i.test(trimmed) || /<body[^>]*>/i.test(trimmed);
+
+        let htmlToRender = isCompleteDoc ? trimmed : wrapRawSnippet(trimmed);
+
+        // Replace remote cdn.tailwindcss.com with local bundled script so it never violates CSP
+        const remoteTailwindRegex = /<script[^>]*src=["'](?:https?:)?\/\/cdn\.tailwindcss\.com[^"']*["'][^>]*>\s*<\/script>/gi;
+        if (remoteTailwindRegex.test(htmlToRender)) {
+          if (localTailwindScript) {
+            htmlToRender = htmlToRender.replace(remoteTailwindRegex, '<script>' + localTailwindScript + '<\/script>');
+          } else {
+            htmlToRender = htmlToRender.replace(remoteTailwindRegex, '<script src="./tailwind.js"><\/script>');
+          }
+        }
+
+        // Inject VFS bridge script into <head> or at beginning
+        const headRegex = /<head[^>]*>/i;
+        if (headRegex.test(htmlToRender)) {
+          return htmlToRender.replace(headRegex, (match) => match + "\n" + VFS_BRIDGE_SCRIPT);
+        }
+        const htmlRegex = /<html[^>]*>/i;
+        if (htmlRegex.test(htmlToRender)) {
+          return htmlToRender.replace(htmlRegex, (match) => match + "\n<head>\n" + VFS_BRIDGE_SCRIPT + "\n</head>");
+        }
+        return VFS_BRIDGE_SCRIPT + "\n" + htmlToRender;
+      }
+
+      window.addEventListener("message", (event) => {
+        const data = event.data;
+
+        // Handle render message from parent (viewer)
+        if (data?.type === "render" && typeof data.html === "string") {
+          // Hide loading, show iframe
+          loadingEl.style.display = "none";
+          contentEl.style.display = "block";
+
+          // Set the HTML content via srcdoc with injected VFS bridge
+          contentEl.srcdoc = injectVfsBridge(data.html);
+          return;
+        }
+
+        // Handle FS/BASH requests from content iframe - relay to parent (viewer)
+        if (data?.type?.endsWith("_REQUEST") && event.source === contentEl.contentWindow) {
+          // Store source for response routing
+          pendingRequests.set(data.id, event.source);
+          // Relay to parent (viewer)
+          window.parent.postMessage(data, "*");
+          return;
+        }
+
+        // Handle FS/BASH responses from parent (viewer) - relay to content iframe
+        if (data?.type?.endsWith("_RESPONSE") && pendingRequests.has(data.id)) {
+          const source = pendingRequests.get(data.id);
+          pendingRequests.delete(data.id);
+          // Relay to content iframe
+          source.postMessage(data, "*");
+          return;
+        }
+      });
+
+      // Notify parent that we're ready to receive content
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: "sandbox-ready" }, "*");
+      }
+    </script>
+  </body>
+</html>

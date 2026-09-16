@@ -1,0 +1,191 @@
+@import "tailwindcss";
+
+@layer theme {
+  :root {
+    --font-sans: "Raleway", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    
+    /* Light Theme (Clean Slate & Vibrant Indigo) */
+    --background: #f8fafc;
+    --foreground: #0f172a;
+    
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+    
+    --popover: #ffffff;
+    --popover-foreground: #0f172a;
+    
+    --primary: #6366f1;
+    --primary-foreground: #ffffff;
+    
+    --secondary: #f1f5f9;
+    --secondary-foreground: #1e293b;
+    
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    
+    --accent: #e0e7ff;
+    --accent-foreground: #3730a3;
+    
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    
+    --border: #e2e8f0;
+    --input: #e2e8f0;
+    --ring: rgba(99, 102, 241, 0.4);
+    
+    --success: #10b981;
+    --warning: #f59e0b;
+    
+    --radius: 0.75rem;
+  }
+
+  /* Dark Theme (Obsidian / Deep Slate & Electric Violet-Indigo) */
+  :root.dark,
+  html.dark,
+  body.dark,
+  .dark {
+    --background: #090d16;
+    --foreground: #f8fafc;
+    
+    --card: #111827;
+    --card-foreground: #f8fafc;
+    
+    --popover: #111827;
+    --popover-foreground: #f8fafc;
+    
+    --primary: #818cf8;
+    --primary-foreground: #ffffff;
+    
+    --secondary: #1e293b;
+    --secondary-foreground: #f1f5f9;
+    
+    --muted: #1e293b;
+    --muted-foreground: #94a3b8;
+    
+    --accent: #312e81;
+    --accent-foreground: #c7d2fe;
+    
+    --destructive: #f87171;
+    --destructive-foreground: #ffffff;
+    
+    --border: rgba(255, 255, 255, 0.1);
+    --input: rgba(255, 255, 255, 0.12);
+    --ring: rgba(129, 140, 248, 0.5);
+    
+    --success: #34d399;
+    --warning: #fbbf24;
+  }
+}
+
+/* Explicit CSS variables mappings for classes */
+.bg-background { background-color: var(--background) !important; }
+.bg-card { background-color: var(--card) !important; }
+.bg-card\/60 { background-color: color-mix(in srgb, var(--card) 60%, transparent) !important; }
+.bg-card\/70 { background-color: color-mix(in srgb, var(--card) 70%, transparent) !important; }
+.bg-card\/75 { background-color: color-mix(in srgb, var(--card) 75%, transparent) !important; }
+.bg-card\/80 { background-color: color-mix(in srgb, var(--card) 80%, transparent) !important; }
+.bg-card\/90 { background-color: color-mix(in srgb, var(--card) 90%, transparent) !important; }
+.bg-card\/50 { background-color: color-mix(in srgb, var(--card) 50%, transparent) !important; }
+
+.text-foreground { color: var(--foreground) !important; }
+.text-foreground\/80 { color: color-mix(in srgb, var(--foreground) 80%, transparent) !important; }
+.text-foreground\/90 { color: color-mix(in srgb, var(--foreground) 90%, transparent) !important; }
+
+.bg-muted { background-color: var(--muted) !important; }
+.bg-muted\/20 { background-color: color-mix(in srgb, var(--muted) 20%, transparent) !important; }
+.bg-muted\/40 { background-color: color-mix(in srgb, var(--muted) 40%, transparent) !important; }
+.bg-muted\/60 { background-color: color-mix(in srgb, var(--muted) 60%, transparent) !important; }
+.bg-muted\/80 { background-color: color-mix(in srgb, var(--muted) 80%, transparent) !important; }
+.text-muted-foreground { color: var(--muted-foreground) !important; }
+
+.bg-primary { background-color: var(--primary) !important; }
+.bg-primary\/10 { background-color: color-mix(in srgb, var(--primary) 10%, transparent) !important; }
+.bg-primary\/15 { background-color: color-mix(in srgb, var(--primary) 15%, transparent) !important; }
+.bg-primary\/20 { background-color: color-mix(in srgb, var(--primary) 20%, transparent) !important; }
+.text-primary { color: var(--primary) !important; }
+.text-primary-foreground { color: var(--primary-foreground) !important; }
+
+.border-border { border-color: var(--border) !important; }
+.border-border\/40 { border-color: color-mix(in srgb, var(--border) 40%, transparent) !important; }
+.border-border\/50 { border-color: color-mix(in srgb, var(--border) 50%, transparent) !important; }
+.border-border\/70 { border-color: color-mix(in srgb, var(--border) 70%, transparent) !important; }
+.border-border\/80 { border-color: color-mix(in srgb, var(--border) 80%, transparent) !important; }
+.border-primary { border-color: var(--primary) !important; }
+.border-primary\/20 { border-color: color-mix(in srgb, var(--primary) 20%, transparent) !important; }
+.border-primary\/25 { border-color: color-mix(in srgb, var(--primary) 25%, transparent) !important; }
+.border-primary\/30 { border-color: color-mix(in srgb, var(--primary) 30%, transparent) !important; }
+
+.bg-destructive { background-color: var(--destructive) !important; }
+.text-destructive-foreground { color: var(--destructive-foreground) !important; }
+
+html, body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  user-select: text;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+body {
+  background-image: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 7%, transparent) 0%, transparent 60%);
+}
+
+/* Typing Bounce Animation */
+@keyframes typing-bounce {
+  0%, 80%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+
+.animate-typing-dot-1 {
+  animation: typing-bounce 1.4s infinite ease-in-out both;
+  animation-delay: 0s;
+}
+
+.animate-typing-dot-2 {
+  animation: typing-bounce 1.4s infinite ease-in-out both;
+  animation-delay: 0.2s;
+}
+
+.animate-typing-dot-3 {
+  animation: typing-bounce 1.4s infinite ease-in-out both;
+  animation-delay: 0.4s;
+}
+
+/* Streaming subtle glow */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.25);
+  }
+}
+
+.animate-streaming-glow {
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  opacity: 0.3;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
