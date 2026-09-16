@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "wxt",
     "build": "wxt build",
-    "compile": "tsc --noEmit"
+    "compile": "wxt prepare && tsc --noEmit",
+    "postinstall": "wxt prepare"
   },
   "dependencies": {
     "@codemirror/lang-css": "^6.3.1",
