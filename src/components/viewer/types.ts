@@ -9,6 +9,9 @@ export type ViewerType =
   | 'svg'
   | 'audio'
   | 'log'
+  | 'pdf'
+  | 'excel'
+  | 'docx'
   | 'code';
 
 /**
@@ -63,12 +66,38 @@ export function resolveViewerType(
     return 'audio';
   }
 
-  // 7. JSON
+  // 7. PDF
+  if (p.endsWith('.pdf') || m === 'application/pdf') {
+    return 'pdf';
+  }
+
+  // 8. Excel Spreadsheets
+  if (
+    p.endsWith('.xlsx') ||
+    p.endsWith('.xls') ||
+    p.endsWith('.xlsm') ||
+    m === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    m === 'application/vnd.ms-excel'
+  ) {
+    return 'excel';
+  }
+
+  // 9. Word Documents
+  if (
+    p.endsWith('.docx') ||
+    p.endsWith('.doc') ||
+    m === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    m === 'application/msword'
+  ) {
+    return 'docx';
+  }
+
+  // 10. JSON
   if (p.endsWith('.json') || m === 'application/json') {
     return 'json';
   }
 
-  // 8. Mermaid Diagrams
+  // 11. Mermaid Diagrams
   if (
     p.endsWith('.mmd') ||
     p.endsWith('.mermaid') ||
@@ -77,7 +106,7 @@ export function resolveViewerType(
     return 'mermaid';
   }
 
-  // 9. ZIP Archives
+  // 12. ZIP Archives
   if (
     p.endsWith('.zip') ||
     m === 'application/zip' ||
@@ -86,7 +115,7 @@ export function resolveViewerType(
     return 'zip';
   }
 
-  // 10. Log Files
+  // 13. Log Files
   if (p.endsWith('.log') || /\.(log\.[0-9]+|log\.txt)$/i.test(p)) {
     return 'log';
   }
