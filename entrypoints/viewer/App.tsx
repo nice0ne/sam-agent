@@ -20,6 +20,10 @@ import {
   CsvTablePreview,
   ImagePreview,
   RawCodeViewer,
+  JsonTreePreview,
+  MermaidPreview,
+  ZipArchivePreview,
+  resolveViewerType,
 } from '../../src/components/viewer';
 import type { VfsFileRecord } from '../../src/types/agent';
 
@@ -289,27 +293,34 @@ export const App: React.FC = () => {
       return <RawCodeViewer content={file.content} />;
     }
 
-    // 5. Preview Mode by MIME Type & extension
-    if (isHtml) {
-      return <HtmlSandboxPreview htmlContent={file.content} filePath={file.path} onOpenNewTab={handleOpenNewTab} />;
+    // 5. Preview Mode by resolved viewer type
+    const viewerType = resolveViewerType(file.path, file.mimeType, file.content);
+
+    switch (viewerType) {
+      case 'html':
+        return (
+          <HtmlSandboxPreview
+            htmlContent={file.content}
+            filePath={file.path}
+            onOpenNewTab={handleOpenNewTab}
+          />
+        );
+      case 'markdown':
+        return <MarkdownPreview content={file.content} />;
+      case 'csv':
+        return <CsvTablePreview content={file.content} />;
+      case 'image':
+        return <ImagePreview content={file.content} mimeType={file.mimeType} />;
+      case 'json':
+        return <JsonTreePreview content={file.content} filePath={file.path} />;
+      case 'mermaid':
+        return <MermaidPreview content={file.content} filePath={file.path} />;
+      case 'zip':
+        return <ZipArchivePreview file={file} />;
+      case 'code':
+      default:
+        return <RawCodeViewer content={file.content} />;
     }
-
-    const mime = (file.mimeType || '').toLowerCase();
-
-    if (mime === 'text/markdown' || file.path.endsWith('.md')) {
-      return <MarkdownPreview content={file.content} />;
-    }
-
-    if (mime === 'text/csv' || file.path.endsWith('.csv')) {
-      return <CsvTablePreview content={file.content} />;
-    }
-
-    if (mime.startsWith('image/')) {
-      return <ImagePreview content={file.content} mimeType={file.mimeType} />;
-    }
-
-    // Default to RawCodeViewer for all other code and text formats
-    return <RawCodeViewer content={file.content} />;
   };
 
   return (
