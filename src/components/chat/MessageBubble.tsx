@@ -56,7 +56,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isWaiting
           <div className="space-y-2">
             {message.parts.map((part, pIdx) => {
               if (part.type === 'text') {
-                return <MarkdownContent key={pIdx} content={part.text} />;
+                return <MarkdownContent key={pIdx} content={part.text} isUser={isUser} />;
               }
               if (part.type === 'file') {
                 const isImg =
