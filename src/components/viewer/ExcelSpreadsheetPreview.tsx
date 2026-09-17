@@ -343,35 +343,41 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
     }
   };
 
-  // Loading state
+  // Loading state (forced light theme)
   if (isParsing) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-card text-muted-foreground">
-        <LoaderCircle className="w-8 h-8 animate-spin text-primary mb-3" />
-        <p className="text-sm font-medium text-foreground">Loading Spreadsheet</p>
-        <p className="text-xs mt-1">Parsing workbook structure and sheets...</p>
+      <div
+        className="flex flex-col items-center justify-center h-full p-8 text-center bg-white text-slate-600 select-none"
+        style={{ colorScheme: 'light' }}
+      >
+        <LoaderCircle className="w-8 h-8 animate-spin text-emerald-600 mb-3" />
+        <p className="text-sm font-semibold text-slate-900">Loading Spreadsheet</p>
+        <p className="text-xs text-slate-500 mt-1">Parsing workbook structure and sheets...</p>
       </div>
     );
   }
 
-  // Error state
+  // Error state (forced light theme)
   if (error || !workbook || sheetNames.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-card text-muted-foreground">
-        <div className="size-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-4 text-amber-500">
+      <div
+        className="flex flex-col items-center justify-center h-full p-8 text-center bg-white text-slate-600 select-none"
+        style={{ colorScheme: 'light' }}
+      >
+        <div className="size-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mb-4 text-amber-600">
           <AlertCircle className="w-6 h-6" />
         </div>
-        <h3 className="text-base font-semibold text-foreground mb-1">
+        <h3 className="text-base font-semibold text-slate-900 mb-1">
           Unable to Preview Spreadsheet
         </h3>
-        <p className="text-xs text-muted-foreground max-w-md mb-6 leading-relaxed">
+        <p className="text-xs text-slate-500 max-w-md mb-6 leading-relaxed">
           {error || 'This spreadsheet file could not be decoded or contains no readable sheets.'}
         </p>
         {(rawBytes.length > 0 || content.length > 0) && (
           <button
             type="button"
             onClick={handleDownloadExcel}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-xs cursor-pointer"
           >
             <Download className="w-4 h-4" />
             Download Original File
@@ -393,26 +399,31 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
       : Math.min(safeCurrentPage * pageSize, totalRows);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-card text-foreground">
-      {/* Top Header & Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border bg-card/80 backdrop-blur-xs shrink-0">
+    <div
+      className="flex flex-col h-full w-full overflow-hidden bg-white text-slate-900 select-text font-sans"
+      style={{ colorScheme: 'light' }}
+    >
+      {/* Top Header & Toolbar (Always clean light Excel theme) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-200 bg-white shrink-0">
         {/* File information and summary stats */}
         <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
           <div className="flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-emerald-500 shrink-0" />
-            <span className="text-xs font-semibold text-foreground truncate max-w-[220px]" title={fileName}>
+            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/60 shrink-0">
+              <FileSpreadsheet className="w-4 h-4" />
+            </div>
+            <span className="text-xs font-semibold text-slate-900 truncate max-w-[220px]" title={fileName}>
               {fileName}
             </span>
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-muted text-muted-foreground border border-border/60">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
               {sheetNames.length} sheet{sheetNames.length === 1 ? '' : 's'}
             </span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-muted text-muted-foreground border border-border/60">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
               {rows.length.toLocaleString()} row{rows.length === 1 ? '' : 's'}
             </span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-muted text-muted-foreground border border-border/60">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
               {headers.length} col{headers.length === 1 ? '' : 's'}
             </span>
           </div>
@@ -424,29 +435,29 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
             type="button"
             onClick={handleExportCsv}
             disabled={!activeSheet}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted/60 hover:bg-muted text-foreground border border-border transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200/80 text-slate-800 border border-slate-300 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
             title={`Export active sheet "${activeSheetName}" as CSV`}
           >
-            <Download className="w-3.5 h-3.5 text-muted-foreground" />
+            <Download className="w-3.5 h-3.5 text-slate-600" />
             <span>Export Sheet to CSV</span>
           </button>
 
           <button
             type="button"
             onClick={handleDownloadExcel}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer shadow-2xs"
             title="Download original Excel workbook"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 text-white" />
             <span>Download Excel</span>
           </button>
         </div>
       </div>
 
-      {/* Multi-Sheet Navigation Tabs */}
-      <div className="flex items-center gap-1.5 px-4 py-2 border-b border-border bg-muted/30 overflow-x-auto shrink-0 scrollbar-thin">
-        <div className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mr-2 shrink-0 select-none">
-          <Table className="w-3.5 h-3.5 text-muted-foreground" />
+      {/* Multi-Sheet Navigation Tabs (Excel Sheet Bar) */}
+      <div className="flex items-center gap-1.5 px-4 py-2 border-b border-slate-200 bg-slate-50 overflow-x-auto shrink-0 scrollbar-thin">
+        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-2 shrink-0 select-none">
+          <Table className="w-3.5 h-3.5 text-slate-400" />
           <span>Sheets ({sheetNames.length}):</span>
         </div>
 
@@ -457,13 +468,13 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
               key={sheetName}
               type="button"
               onClick={() => handleSelectSheet(sheetName)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer flex items-center gap-1.5 border ${
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all shrink-0 cursor-pointer flex items-center gap-1.5 border ${
                 isActive
-                  ? 'bg-primary text-primary-foreground border-primary shadow-xs'
-                  : 'bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/70'
+                  ? 'bg-white text-emerald-700 border-emerald-500 shadow-xs font-semibold ring-1 ring-emerald-500/20'
+                  : 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900 hover:bg-white'
               }`}
             >
-              <Table className={`w-3 h-3 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
+              <Table className={`w-3 h-3 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
               <span className="truncate max-w-[160px]">{sheetName}</span>
             </button>
           );
@@ -471,10 +482,10 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
       </div>
 
       {/* Filter and Grid Controls Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-border bg-card shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-slate-200 bg-white shrink-0">
         {/* Search Filter */}
         <div className="relative w-72 max-w-full">
-          <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground pointer-events-none" />
+          <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
           <input
             type="text"
             placeholder={`Search in "${activeSheetName}"...`}
@@ -483,7 +494,7 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
               setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full pl-9 pr-8 py-1.5 text-xs bg-muted/40 hover:bg-muted/70 focus:bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+            className="w-full pl-9 pr-8 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all"
           />
           {searchTerm && (
             <button
@@ -492,7 +503,7 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
                 setSearchTerm('');
                 setCurrentPage(1);
               }}
-              className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+              className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-700 cursor-pointer"
               title="Clear search"
             >
               <X className="w-3.5 h-3.5" />
@@ -501,21 +512,21 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
         </div>
 
         {/* Row count and page size selector */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-3 flex-wrap select-none">
+          <span className="text-[11px] text-slate-600">
             {searchTerm.trim() ? (
               <>
-                Matched <strong className="text-foreground">{totalRows}</strong> of{' '}
-                <strong className="text-foreground">{rows.length}</strong> rows
+                Matched <strong className="text-slate-900 font-semibold">{totalRows}</strong> of{' '}
+                <strong className="text-slate-900 font-semibold">{rows.length}</strong> rows
               </>
             ) : (
               <>
-                Total <strong className="text-foreground">{rows.length}</strong> rows
+                Total <strong className="text-slate-900 font-semibold">{rows.length}</strong> rows
               </>
             )}
           </span>
 
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs text-slate-600">
             <label htmlFor="excel-page-size" className="text-[11px]">
               Rows per page:
             </label>
@@ -527,7 +538,7 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
                 setPageSize(val === 'all' ? 'all' : Number(val));
                 setCurrentPage(1);
               }}
-              className="bg-muted/60 border border-border rounded-md px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              className="bg-white border border-slate-300 rounded-md px-2 py-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 cursor-pointer"
             >
               <option value={25}>25</option>
               <option value={50}>50</option>
@@ -538,20 +549,20 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
         </div>
       </div>
 
-      {/* Active Sheet Data Grid */}
-      <div className="flex-1 overflow-auto bg-card relative">
+      {/* Active Sheet Data Grid (Pure White Spreadsheet Grid) */}
+      <div className="flex-1 overflow-auto bg-white relative">
         {headers.length === 0 && rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full p-8 text-center text-muted-foreground">
-            <Table className="w-10 h-10 stroke-1 text-muted-foreground/50 mb-2" />
-            <p className="text-sm font-medium text-foreground">Worksheet is Empty</p>
-            <p className="text-xs mt-1">"{activeSheetName}" does not contain any rows or columns.</p>
+          <div className="flex flex-col items-center justify-center h-full p-8 text-center text-slate-500 select-none">
+            <Table className="w-10 h-10 stroke-1 text-slate-300 mb-2" />
+            <p className="text-sm font-semibold text-slate-800">Worksheet is Empty</p>
+            <p className="text-xs mt-1 text-slate-500">"{activeSheetName}" does not contain any rows or columns.</p>
           </div>
         ) : (
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-muted/90 backdrop-blur-md sticky top-0 z-10 border-b border-border select-none shadow-2xs">
+            <thead className="bg-slate-100 sticky top-0 z-10 border-b border-slate-300 select-none shadow-xs">
               <tr>
                 {/* Row number column header */}
-                <th className="w-12 px-3 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase text-center border-r border-border/50 sticky left-0 bg-muted/95 z-20">
+                <th className="w-12 px-3 py-2.5 text-[10px] font-semibold text-slate-500 uppercase text-center border-r border-slate-300 sticky left-0 bg-slate-100 z-20">
                   #
                 </th>
 
@@ -562,18 +573,18 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
                     <th
                       key={i}
                       onClick={() => handleHeaderClick(i)}
-                      className="px-4 py-2.5 font-semibold text-foreground border-r border-border/40 last:border-r-0 hover:bg-muted cursor-pointer transition-colors group"
+                      className="px-4 py-2.5 font-semibold text-slate-800 border-r border-slate-300 last:border-r-0 hover:bg-slate-200/80 cursor-pointer transition-colors group select-none"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate" title={h}>
                           {h}
                         </span>
-                        <span className="shrink-0 text-muted-foreground">
+                        <span className="shrink-0 text-slate-400">
                           {isSorted ? (
                             sortDir === 'asc' ? (
-                              <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                              <ArrowUp className="w-3.5 h-3.5 text-emerald-600" />
                             ) : (
-                              <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                              <ArrowDown className="w-3.5 h-3.5 text-emerald-600" />
                             )
                           ) : (
                             <ArrowUpDown className="w-3 h-3 opacity-30 group-hover:opacity-100 transition-opacity" />
@@ -586,7 +597,7 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-border/50">
+            <tbody className="divide-y divide-slate-200 bg-white">
               {paginatedRows.length > 0 ? (
                 paginatedRows.map((row, rIdx) => {
                   const absoluteIndex =
@@ -594,10 +605,10 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
                   return (
                     <tr
                       key={rIdx}
-                      className="hover:bg-muted/40 transition-colors group"
+                      className="hover:bg-emerald-50/50 transition-colors group bg-white"
                     >
                       {/* Row Index */}
-                      <td className="px-3 py-2 text-[11px] font-mono text-muted-foreground/60 text-center select-none bg-muted/15 border-r border-border/40 sticky left-0 group-hover:bg-muted/30">
+                      <td className="px-3 py-2 text-[11px] font-mono text-slate-400 text-center select-none bg-slate-50 border-r border-slate-300 sticky left-0 group-hover:bg-emerald-100/50">
                         {absoluteIndex}
                       </td>
 
@@ -607,7 +618,7 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
                         return (
                           <td
                             key={cIdx}
-                            className="px-4 py-2 text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis max-w-sm border-r border-border/40 last:border-r-0 font-sans"
+                            className="px-4 py-2 text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis max-w-sm border-r border-slate-200 last:border-r-0 font-sans"
                             title={cellVal}
                           >
                             {cellVal}
@@ -621,7 +632,7 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
                 <tr>
                   <td
                     colSpan={headers.length + 1}
-                    className="py-16 text-center text-xs text-muted-foreground italic"
+                    className="py-16 text-center text-xs text-slate-500 italic bg-white"
                   >
                     {searchTerm.trim() ? (
                       <div className="flex flex-col items-center gap-2">
@@ -632,7 +643,7 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
                             setSearchTerm('');
                             setCurrentPage(1);
                           }}
-                          className="text-xs text-primary hover:underline cursor-pointer"
+                          className="text-xs text-emerald-600 hover:underline cursor-pointer font-medium"
                         >
                           Clear search filter
                         </button>
@@ -650,11 +661,11 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
 
       {/* Pagination Footer */}
       {pageSize !== 'all' && totalRows > 0 && (
-        <div className="flex items-center justify-between gap-3 px-4 py-2 border-t border-border bg-card/90 backdrop-blur-xs shrink-0 select-none">
-          <div className="text-[11px] text-muted-foreground">
-            Showing <strong className="text-foreground">{startRowIndex}</strong> -{' '}
-            <strong className="text-foreground">{endRowIndex}</strong> of{' '}
-            <strong className="text-foreground">{totalRows}</strong> rows
+        <div className="flex items-center justify-between gap-3 px-4 py-2 border-t border-slate-200 bg-white shrink-0 select-none">
+          <div className="text-[11px] text-slate-600">
+            Showing <strong className="text-slate-900 font-semibold">{startRowIndex}</strong> -{' '}
+            <strong className="text-slate-900 font-semibold">{endRowIndex}</strong> of{' '}
+            <strong className="text-slate-900 font-semibold">{totalRows}</strong> rows
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -662,13 +673,13 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={safeCurrentPage <= 1}
-              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+              className="p-1 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer border border-slate-200"
               title="Previous page"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <span className="text-xs font-medium px-2 py-0.5 text-foreground">
+            <span className="text-xs font-medium px-2 py-0.5 text-slate-800 bg-slate-50 rounded border border-slate-200">
               Page {safeCurrentPage} of {totalPages}
             </span>
 
@@ -676,7 +687,7 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={safeCurrentPage >= totalPages}
-              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+              className="p-1 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer border border-slate-200"
               title="Next page"
             >
               <ChevronRight className="w-4 h-4" />
