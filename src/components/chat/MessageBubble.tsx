@@ -33,18 +33,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isWaiting
       <div
         className={`relative max-w-[88%] rounded-2xl px-4 py-3 shadow-2xs transition-all select-text ${
           isUser
-            ? 'bg-primary text-primary-foreground rounded-tr-xs shadow-xs border border-primary/20'
-            : 'bg-card border border-border text-foreground rounded-tl-xs shadow-xs w-full'
-        } ${isWaiting ? 'animate-streaming-glow' : ''}`}
+            ? 'bg-blue-600 text-white rounded-tr-xs shadow-xs border border-blue-500/30'
+            : `bg-card text-foreground rounded-tl-xs shadow-xs w-full ${
+                isWaiting
+                  ? 'border border-blue-400/50 bg-blue-50/40 dark:bg-blue-950/20 animate-streaming-glow'
+                  : 'border border-border/80'
+              }`
+        }`}
       >
         {isWaiting ? (
-          <div className="flex items-center gap-2.5 py-1 text-xs text-muted-foreground select-none">
+          <div className="flex items-center gap-2.5 py-1 text-xs select-none">
             <div className="flex items-center gap-1">
-              <span className="size-2 rounded-full bg-primary animate-typing-dot-1" />
-              <span className="size-2 rounded-full bg-primary animate-typing-dot-2" />
-              <span className="size-2 rounded-full bg-primary animate-typing-dot-3" />
+              <span className="size-2 rounded-full bg-blue-600 dark:bg-blue-400 animate-typing-dot-1" />
+              <span className="size-2 rounded-full bg-blue-600 dark:bg-blue-400 animate-typing-dot-2" />
+              <span className="size-2 rounded-full bg-blue-600 dark:bg-blue-400 animate-typing-dot-3" />
             </div>
-            <span className="text-[11px] font-mono tracking-tight text-foreground/75">
+            <span className="text-[11px] font-mono tracking-tight text-blue-900 dark:text-blue-200 font-medium">
               Thinking with {hostedModel}...
             </span>
           </div>

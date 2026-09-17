@@ -16,15 +16,15 @@ export const LiveActivityBanner: React.FC<LiveActivityBannerProps> = ({
 
 
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-primary/30 bg-primary/10 text-primary animate-pulse shadow-2xs transition-all">
+    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50/90 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 shadow-2xs transition-all">
       <div className="flex items-center gap-2 min-w-0 truncate">
         <div className="relative flex items-center justify-center shrink-0">
-          <LoaderCircle className="size-4 animate-spin text-primary" />
+          <LoaderCircle className="size-4 animate-spin text-blue-600 dark:text-blue-400" />
           <Sparkles className="size-2 absolute text-amber-500" />
         </div>
         <div className="flex items-center gap-1.5 min-w-0 truncate">
-          <Bot className="size-3.5 shrink-0" />
-          <span className="text-xs font-medium truncate">
+          <Bot className="size-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
+          <span className="text-xs font-semibold text-blue-950 dark:text-blue-100 truncate">
             {activeTool ? `Running tool: ${activeTool}...` : 'AI Agent is working...'}
           </span>
         </div>
