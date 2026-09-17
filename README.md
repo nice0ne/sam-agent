@@ -21,7 +21,7 @@
 ## 🌟 Overview
 
 <div align="center">
-  <video src="https://github.com/nice0ne/sam-agent/raw/main/docs/video/Sam-Mockup.mp4" controls="controls" muted="muted" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></video>
+  <img src="docs/video/Sam-Mockup.gif" alt="SAM-Agent UI & Mockup Demo" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
 </div>
 
 **SAM-Agent** is a local-first, highly capable autonomous pair programmer and browser agent built as a Chrome Extension (Manifest V3). It combines state-of-the-art LLM reasoning with native Chrome APIs (`chrome.debugger`, `chrome.scripting`, `chrome.tabs`, `chrome.alarms`, and `FileSystemAccessAPI`) to deliver a true co-pilot experience directly inside your browser.
@@ -48,14 +48,14 @@ Unlike standard chatbots, SAM-Agent can **see**, **understand**, and **act** upo
 - **Action Guardrails**: Strict safety rules prevent modifying disabled/readonly system fields unless explicitly intended.
 
 <div align="center" style="margin-top: 12px; margin-bottom: 16px;">
-  <video src="https://github.com/nice0ne/sam-agent/raw/main/docs/video/Sam-Automation.mp4" controls="controls" muted="muted" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></video>
+  <img src="docs/video/Sam-Automation.gif" alt="Autonomous Browser Automation Demo" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
 </div>
 
 #### 📝 Intelligent Form Filling
 - Seamlessly navigates complex forms, inputs validation data, selects dropdowns, and triggers events naturally.
 
 <div align="center" style="margin-top: 12px; margin-bottom: 16px;">
-  <video src="https://github.com/nice0ne/sam-agent/raw/main/docs/video/Sam-Fill-Form.mp4" controls="controls" muted="muted" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></video>
+  <img src="docs/video/Sam-Fill-Form.gif" alt="Intelligent Form Filling Demo" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
 </div>
 
 ### 3. 📑 Multi-Tab Pipeline Orchestration
@@ -64,7 +64,7 @@ Unlike standard chatbots, SAM-Agent can **see**, **understand**, and **act** upo
 - **Data Aggregation**: Extract information from Tab A, process it, switch to Tab B, and submit the compiled data into internal workflows.
 
 <div align="center" style="margin-top: 12px; margin-bottom: 16px;">
-  <video src="https://github.com/nice0ne/sam-agent/raw/main/docs/video/Sam-Function-Tab.mp4" controls="controls" muted="muted" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></video>
+  <img src="docs/video/Sam-Function-Tab.gif" alt="Multi-Tab Pipeline Orchestration Demo" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
 </div>
 
 ### 4. 💾 Virtual File System (VFS) & Local Workspace Sync
