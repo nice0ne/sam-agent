@@ -200,7 +200,7 @@ export const HistoryView: React.FC = () => {
                 key={thread.id}
                 className={`group relative flex items-start justify-between gap-3 p-3 rounded-xl border transition-all cursor-pointer shadow-2xs ${
                   isCurrent
-                    ? 'border-blue-500/40 dark:border-blue-500/30 bg-blue-50/80 dark:bg-blue-950/30 hover:bg-blue-50 dark:hover:bg-blue-950/40 ring-1 ring-blue-500/20 shadow-xs'
+                    ? 'border-blue-500/50 dark:border-blue-500/40 border-l-4 border-l-blue-600 dark:border-l-blue-500 bg-card hover:bg-card/90 ring-1 ring-blue-500/20 shadow-xs'
                     : 'border-border/70 bg-card/70 hover:bg-card hover:border-border'
                 }`}
                 onClick={() => navigateToChat(thread.id)}
@@ -209,7 +209,7 @@ export const HistoryView: React.FC = () => {
                   <div
                     className={`size-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
                       isCurrent
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 shadow-2xs'
+                        ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white shadow-xs'
                         : 'bg-muted text-muted-foreground group-hover:text-foreground'
                     }`}
                   >
@@ -218,18 +218,12 @@ export const HistoryView: React.FC = () => {
 
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-center justify-between gap-2">
-                      <h4
-                        className={`text-xs font-semibold truncate max-w-[200px] sm:max-w-[240px] ${
-                          isCurrent
-                            ? 'text-blue-950 dark:text-blue-100'
-                            : 'text-foreground'
-                        }`}
-                      >
+                      <h4 className="text-xs font-semibold text-foreground truncate max-w-[200px] sm:max-w-[240px]">
                         {thread.title || 'Untitled Conversation'}
                       </h4>
                       <span
                         className={`text-[10px] font-mono shrink-0 flex items-center gap-1 ${
-                          isCurrent ? 'text-blue-700/80 dark:text-blue-300/80' : 'text-muted-foreground'
+                          isCurrent ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-muted-foreground'
                         }`}
                       >
                         <Clock className="size-2.5" />
@@ -237,21 +231,11 @@ export const HistoryView: React.FC = () => {
                       </span>
                     </div>
 
-                    <p
-                      className={`text-[11px] truncate leading-relaxed ${
-                        isCurrent
-                          ? 'text-blue-800/85 dark:text-blue-200/80 font-normal'
-                          : 'text-muted-foreground'
-                      }`}
-                    >
+                    <p className="text-[11px] text-muted-foreground truncate leading-relaxed">
                       {snippet}
                     </p>
 
-                    <div
-                      className={`flex items-center gap-2 pt-0.5 text-[10px] font-mono ${
-                        isCurrent ? 'text-blue-700/80 dark:text-blue-300/80' : 'text-muted-foreground'
-                      }`}
-                    >
+                    <div className="flex items-center gap-2 pt-0.5 text-[10px] text-muted-foreground font-mono">
                       <span>{thread.messages.length} messages</span>
                       {thread.tokenUsage && thread.tokenUsage.totalTokens > 0 && (
                         <>
@@ -262,7 +246,8 @@ export const HistoryView: React.FC = () => {
                       {isCurrent && (
                         <>
                           <span>•</span>
-                          <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-semibold bg-blue-200/60 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300 border border-blue-300/70 dark:border-blue-500/30">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                            <span className="size-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
                             Active
                           </span>
                         </>
