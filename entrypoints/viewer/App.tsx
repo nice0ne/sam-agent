@@ -26,6 +26,9 @@ import {
   SvgInspectorPreview,
   AudioPlayerPreview,
   LogStreamPreview,
+  PdfDocumentPreview,
+  ExcelSpreadsheetPreview,
+  WordDocumentPreview,
   resolveViewerType,
 } from '../../src/components/viewer';
 import type { VfsFileRecord } from '../../src/types/agent';
@@ -332,6 +335,18 @@ export const App: React.FC = () => {
         );
       case 'log':
         return <LogStreamPreview content={file.content} filePath={file.path} />;
+      case 'pdf':
+        return (
+          <PdfDocumentPreview
+            content={file.content}
+            filePath={file.path}
+            mimeType={file.mimeType}
+          />
+        );
+      case 'excel':
+        return <ExcelSpreadsheetPreview content={file.content} filePath={file.path} />;
+      case 'docx':
+        return <WordDocumentPreview content={file.content} filePath={file.path} />;
       case 'code':
       default:
         return <RawCodeViewer content={file.content} />;

@@ -11,3 +11,6 @@ export * from './ZipArchivePreview';
 export * from './SvgInspectorPreview';
 export * from './AudioPlayerPreview';
 export * from './LogStreamPreview';
+export * from './PdfDocumentPreview';
+export * from './ExcelSpreadsheetPreview';
+export * from './WordDocumentPreview';
