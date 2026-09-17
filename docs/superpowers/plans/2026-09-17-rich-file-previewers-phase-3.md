@@ -45,18 +45,18 @@
   export function resolveViewerType(path: string, mimeType?: string, content?: string): ViewerType;
   ```
 
-- [ ] **Step 1: Install `xlsx` and `docx-preview`**
+- [x] **Step 1: Install `xlsx` and `docx-preview`**
 
 Run:
 ```bash
 npm install xlsx docx-preview
 ```
 
-- [ ] **Step 2: Update `src/components/viewer/types.ts`**
+- [x] **Step 2: Update `src/components/viewer/types.ts`**
 
 Update `ViewerType` and `resolveViewerType` with `'pdf'`, `'excel'`, and `'docx'`.
 
-- [ ] **Step 3: Run TypeScript compile verification**
+- [x] **Step 3: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -64,7 +64,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 4: Commit Task 1**
+- [x] **Step 4: Commit Task 1**
 
 ```bash
 git add package.json package-lock.json src/components/viewer/types.ts
@@ -91,7 +91,7 @@ git commit -m "feat(viewer): install xlsx and docx-preview, expand ViewerType fo
   export const PdfDocumentPreview: React.FC<PdfDocumentPreviewProps>;
   ```
 
-- [ ] **Step 1: Create `src/components/viewer/PdfDocumentPreview.tsx`**
+- [x] **Step 1: Create `src/components/viewer/PdfDocumentPreview.tsx`**
 
 Key features:
 1. Converts base64 data URL (`data:application/pdf;base64,...`) or binary data to Blob and Object URL.
@@ -103,11 +103,11 @@ Key features:
    - File metadata badge with filename and size.
 5. Error alert card if content is empty or corrupt.
 
-- [ ] **Step 2: Export in `src/components/viewer/index.ts`**
+- [x] **Step 2: Export in `src/components/viewer/index.ts`**
 
 Add `export * from './PdfDocumentPreview';` to `src/components/viewer/index.ts`.
 
-- [ ] **Step 3: Run TypeScript compile verification**
+- [x] **Step 3: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -115,7 +115,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 4: Commit Task 2**
+- [x] **Step 4: Commit Task 2**
 
 ```bash
 git add src/components/viewer/PdfDocumentPreview.tsx src/components/viewer/index.ts
@@ -141,7 +141,7 @@ git commit -m "feat(viewer): implement PdfDocumentPreview with native Chromium P
   export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps>;
   ```
 
-- [ ] **Step 1: Create `src/components/viewer/ExcelSpreadsheetPreview.tsx`**
+- [x] **Step 1: Create `src/components/viewer/ExcelSpreadsheetPreview.tsx`**
 
 Key features:
 1. Decode base64 or binary data into `Uint8Array` and parse via `XLSX.read(data, { type: 'array' })`.
@@ -157,11 +157,11 @@ Key features:
    - "Download Excel": downloads original `.xlsx` file via `triggerBlobDownload`.
 7. Summary stats: Total rows, columns, sheet count.
 
-- [ ] **Step 2: Export in `src/components/viewer/index.ts`**
+- [x] **Step 2: Export in `src/components/viewer/index.ts`**
 
 Add `export * from './ExcelSpreadsheetPreview';` to `src/components/viewer/index.ts`.
 
-- [ ] **Step 3: Run TypeScript compile verification**
+- [x] **Step 3: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -169,7 +169,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 4: Commit Task 3**
+- [x] **Step 4: Commit Task 3**
 
 ```bash
 git add src/components/viewer/ExcelSpreadsheetPreview.tsx src/components/viewer/index.ts
@@ -195,7 +195,7 @@ git commit -m "feat(viewer): implement ExcelSpreadsheetPreview with multi-sheet 
   export const WordDocumentPreview: React.FC<WordDocumentPreviewProps>;
   ```
 
-- [ ] **Step 1: Create `src/components/viewer/WordDocumentPreview.tsx`**
+- [x] **Step 1: Create `src/components/viewer/WordDocumentPreview.tsx`**
 
 Key features:
 1. Decode base64 or binary data into `ArrayBuffer`.
@@ -207,11 +207,11 @@ Key features:
    - Sniffs for legacy format, extracts raw text lines if possible, and shows a friendly info card advising user to save as `.docx` with a direct download button.
 4. Download button: "Download Word File" via `triggerBlobDownload`.
 
-- [ ] **Step 2: Export in `src/components/viewer/index.ts`**
+- [x] **Step 2: Export in `src/components/viewer/index.ts`**
 
 Add `export * from './WordDocumentPreview';` to `src/components/viewer/index.ts`.
 
-- [ ] **Step 3: Run TypeScript compile verification**
+- [x] **Step 3: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -219,7 +219,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 4: Commit Task 4**
+- [x] **Step 4: Commit Task 4**
 
 ```bash
 git add src/components/viewer/WordDocumentPreview.tsx src/components/viewer/index.ts
@@ -236,7 +236,7 @@ git commit -m "feat(viewer): implement WordDocumentPreview with docx-preview pag
 **Interfaces:**
 - Consumes: `PdfDocumentPreview`, `ExcelSpreadsheetPreview`, `WordDocumentPreview`, `resolveViewerType`.
 
-- [ ] **Step 1: Update `entrypoints/viewer/App.tsx`**
+- [x] **Step 1: Update `entrypoints/viewer/App.tsx`**
 
 1. Import `PdfDocumentPreview`, `ExcelSpreadsheetPreview`, `WordDocumentPreview` from `../../src/components/viewer`.
 2. In `renderContent()`, add cases to the `switch (viewerType)` statement:
@@ -244,7 +244,7 @@ git commit -m "feat(viewer): implement WordDocumentPreview with docx-preview pag
    - `'excel'` -> `<ExcelSpreadsheetPreview content={file.content} filePath={file.path} />`
    - `'docx'` -> `<WordDocumentPreview content={file.content} filePath={file.path} />`
 
-- [ ] **Step 2: Run TypeScript compile verification**
+- [x] **Step 2: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -252,7 +252,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 3: Commit Task 5**
+- [x] **Step 3: Commit Task 5**
 
 ```bash
 git add entrypoints/viewer/App.tsx
@@ -266,7 +266,7 @@ git commit -m "feat(viewer): wire pdf, excel, and docx previewers into viewer Ap
 **Files:**
 - All modified and new files.
 
-- [ ] **Step 1: Clean compile test**
+- [x] **Step 1: Clean compile test**
 
 Run:
 ```bash
@@ -274,7 +274,7 @@ powershell -Command "Remove-Item -Recurse -Force .wxt; npm run compile"
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 2: Production build test**
+- [x] **Step 2: Production build test**
 
 Run:
 ```bash
@@ -282,7 +282,7 @@ npm run build
 ```
 Expected: Exit code 0, Chrome MV3 bundle created successfully in `.output/chrome-mv3`.
 
-- [ ] **Step 3: Push to remote repository**
+- [x] **Step 3: Push to remote repository**
 
 ```bash
 git push origin main
