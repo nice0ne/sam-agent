@@ -32,7 +32,7 @@
   export function resolveViewerType(path: string, mimeType?: string, content?: string): ViewerType;
   ```
 
-- [ ] **Step 1: Create `src/components/viewer/types.ts`**
+- [x] **Step 1: Create `src/components/viewer/types.ts`**
 
 Write `src/components/viewer/types.ts`:
 ```typescript
@@ -113,14 +113,14 @@ export function resolveViewerType(
 }
 ```
 
-- [ ] **Step 2: Export types in `src/components/viewer/index.ts`**
+- [x] **Step 2: Export types in `src/components/viewer/index.ts`**
 
 Append to `src/components/viewer/index.ts`:
 ```typescript
 export * from './types';
 ```
 
-- [ ] **Step 3: Run TypeScript compile verification**
+- [x] **Step 3: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -128,7 +128,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 4: Commit Task 1**
+- [x] **Step 4: Commit Task 1**
 
 ```bash
 git add src/components/viewer/types.ts src/components/viewer/index.ts
@@ -154,7 +154,7 @@ git commit -m "feat(viewer): add ViewerType and resolveViewerType resolver"
   export const JsonTreePreview: React.FC<JsonTreePreviewProps>;
   ```
 
-- [ ] **Step 1: Create `src/components/viewer/JsonTreePreview.tsx`**
+- [x] **Step 1: Create `src/components/viewer/JsonTreePreview.tsx`**
 
 Implement recursive node rendering, copy JSON path, search filtering, table mode toggle for arrays of objects, and malformed JSON alerts.
 Key features:
@@ -164,11 +164,11 @@ Key features:
 4. If content is an array of objects, provide a "Table Mode" switch with sorting and column extraction.
 5. Error alert card if `JSON.parse` fails.
 
-- [ ] **Step 2: Export in `src/components/viewer/index.ts`**
+- [x] **Step 2: Export in `src/components/viewer/index.ts`**
 
 Add `export * from './JsonTreePreview';` to `src/components/viewer/index.ts`.
 
-- [ ] **Step 3: Run TypeScript compile verification**
+- [x] **Step 3: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -176,7 +176,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 4: Commit Task 2**
+- [x] **Step 4: Commit Task 2**
 
 ```bash
 git add src/components/viewer/JsonTreePreview.tsx src/components/viewer/index.ts
@@ -202,7 +202,7 @@ git commit -m "feat(viewer): implement interactive JsonTreePreview with tree and
   export const MermaidPreview: React.FC<MermaidPreviewProps>;
   ```
 
-- [ ] **Step 1: Create `src/components/viewer/MermaidPreview.tsx`**
+- [x] **Step 1: Create `src/components/viewer/MermaidPreview.tsx`**
 
 Key features:
 1. Asynchronous `mermaid.render(id, content)` with unique container ID.
@@ -220,11 +220,11 @@ Key features:
    - Catches syntax errors from `mermaid.render`.
    - Displays alert card with error details and "View Raw Code" guidance.
 
-- [ ] **Step 2: Export in `src/components/viewer/index.ts`**
+- [x] **Step 2: Export in `src/components/viewer/index.ts`**
 
 Add `export * from './MermaidPreview';` to `src/components/viewer/index.ts`.
 
-- [ ] **Step 3: Run TypeScript compile verification**
+- [x] **Step 3: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -232,7 +232,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 4: Commit Task 3**
+- [x] **Step 4: Commit Task 3**
 
 ```bash
 git add src/components/viewer/MermaidPreview.tsx src/components/viewer/index.ts
@@ -257,7 +257,7 @@ git commit -m "feat(viewer): implement MermaidPreview with interactive pan-zoom 
   export const ZipArchivePreview: React.FC<ZipArchivePreviewProps>;
   ```
 
-- [ ] **Step 1: Create `src/components/viewer/ZipArchivePreview.tsx`**
+- [x] **Step 1: Create `src/components/viewer/ZipArchivePreview.tsx`**
 
 Key features:
 1. Decode `file.content` (supporting base64 data URLs `data:application/zip;base64,...`, binary strings, and typed arrays).
@@ -272,11 +272,11 @@ Key features:
 6. Header Action:
    - "Extract All to VFS" with extraction progress state.
 
-- [ ] **Step 2: Export in `src/components/viewer/index.ts`**
+- [x] **Step 2: Export in `src/components/viewer/index.ts`**
 
 Add `export * from './ZipArchivePreview';` to `src/components/viewer/index.ts`.
 
-- [ ] **Step 3: Run TypeScript compile verification**
+- [x] **Step 3: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -284,7 +284,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 4: Commit Task 4**
+- [x] **Step 4: Commit Task 4**
 
 ```bash
 git add src/components/viewer/ZipArchivePreview.tsx src/components/viewer/index.ts
@@ -301,7 +301,7 @@ git commit -m "feat(viewer): implement ZipArchivePreview with archive tree and V
 **Interfaces:**
 - Consumes: `resolveViewerType`, `JsonTreePreview`, `MermaidPreview`, `ZipArchivePreview`, `HtmlSandboxPreview`, `MarkdownPreview`, `CsvTablePreview`, `ImagePreview`, `RawCodeViewer`.
 
-- [ ] **Step 1: Update `entrypoints/viewer/App.tsx` imports & rendering**
+- [x] **Step 1: Update `entrypoints/viewer/App.tsx` imports & rendering**
 
 1. Import `resolveViewerType` and new preview components from `../../src/components/viewer`.
 2. In `renderContent()`, replace hardcoded `if/else` checks with `resolveViewerType(file.path, file.mimeType, file.content)`.
@@ -315,7 +315,7 @@ git commit -m "feat(viewer): implement ZipArchivePreview with archive tree and V
    - `'image'` -> `<ImagePreview ... />`
    - `'code'` / default -> `<RawCodeViewer content={file.content} />`
 
-- [ ] **Step 2: Run TypeScript compile verification**
+- [x] **Step 2: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -323,7 +323,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 3: Commit Task 5**
+- [x] **Step 3: Commit Task 5**
 
 ```bash
 git add entrypoints/viewer/App.tsx
@@ -337,7 +337,7 @@ git commit -m "feat(viewer): wire resolveViewerType and new previewers into view
 **Files:**
 - All modified and new files.
 
-- [ ] **Step 1: Clean compile test**
+- [x] **Step 1: Clean compile test**
 
 Run:
 ```bash
@@ -345,7 +345,7 @@ powershell -Command "Remove-Item -Recurse -Force .wxt; npm run compile"
 ```
 Expected: Exit code 0, WXT generates types cleanly and `tsc --noEmit` passes with 0 errors.
 
-- [ ] **Step 2: Production build test**
+- [x] **Step 2: Production build test**
 
 Run:
 ```bash
@@ -353,7 +353,7 @@ npm run build
 ```
 Expected: Exit code 0, Chrome MV3 bundle created successfully in `.output/chrome-mv3`.
 
-- [ ] **Step 3: Final verification commit and push**
+- [x] **Step 3: Final verification commit and push**
 
 Push commits to remote repository:
 ```bash
