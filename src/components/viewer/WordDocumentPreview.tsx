@@ -12,6 +12,9 @@ import {
   FileCode,
   Copy,
   Check,
+  Eye,
+  Code,
+  Printer,
 } from 'lucide-react';
 import { triggerBlobDownload } from '../../services/archive';
 
@@ -19,6 +22,8 @@ export interface WordDocumentPreviewProps {
   content: string;
   filePath?: string;
 }
+
+export type WordDocType = 'docx' | 'word-html' | 'binary-doc';
 
 /**
  * Format raw byte size into human-readable representation.
@@ -29,6 +34,65 @@ function formatBytes(bytes: number): string {
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+/**
+ * Tests whether a given text snippet has Word HTML / MSO markup signatures.
+ */
+function isWordHtmlSnippet(text: string): boolean {
+  if (!text || text.length < 10) return false;
+  const lower = text.toLowerCase();
+
+  // Microsoft Office / Word specific XML namespaces and tags
+  if (
+    lower.includes('urn:schemas-microsoft-com:office:word') ||
+    lower.includes('urn:schemas-microsoft-com:office:office') ||
+    lower.includes('<w:worddocument') ||
+    lower.includes('xmlns:w=') ||
+    lower.includes('xmlns:o=') ||
+    lower.includes('mso-') ||
+    lower.includes('<!--[if gte mso')
+  ) {
+    return true;
+  }
+
+  // HTML documents saved with Word extensions (.doc / .docx)
+  if (
+    (lower.startsWith('<!doctype html') || lower.startsWith('<html') || lower.includes('<head>') || lower.includes('<body>')) &&
+    (lower.includes('size: a4') || lower.includes('margin:') || lower.includes('font-family:') || lower.includes('<table'))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Extracts Word HTML content if available, checking both raw content and decoded bytes.
+ */
+function extractWordHtml(content: string, bytes: Uint8Array): string | null {
+  // 1. Direct check on content string
+  if (content && typeof content === 'string') {
+    const trimmed = content.trim();
+    if (isWordHtmlSnippet(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  // 2. Decode bytes as UTF-8 text and check
+  if (bytes && bytes.length > 0) {
+    try {
+      const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+      const trimmed = decoded.trim();
+      if (isWordHtmlSnippet(trimmed)) {
+        return trimmed;
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -62,7 +126,7 @@ function decodeContentToArrayBuffer(content: string): { buffer: ArrayBuffer; byt
   if (
     trimmed.startsWith('UEsDB') ||
     trimmed.startsWith('0M8R4') ||
-    (/^[A-Za-z0-9+/=\r\n]+$/.test(trimmed) && trimmed.length % 4 === 0)
+    (/^[A-Za-z0-9+/=\r\n]+$/.test(trimmed) && trimmed.length % 4 === 0 && trimmed.length > 24)
   ) {
     try {
       const clean = trimmed.replace(/\s/g, '');
@@ -88,24 +152,59 @@ function decodeContentToArrayBuffer(content: string): { buffer: ArrayBuffer; byt
 }
 
 /**
- * Determines whether the document is in legacy Word 97-2003 (.doc) binary format.
+ * Checks for ZIP archive magic bytes (0x50, 0x4B, 0x03, 0x04).
  */
-function isLegacyDocFile(filePath: string | undefined, bytes: Uint8Array): boolean {
+function isDocxZipBytes(bytes: Uint8Array): boolean {
+  if (bytes.length < 4) return false;
+  return bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+}
+
+/**
+ * Checks for OLE Compound File Binary Format (CFBF) magic bytes (0xD0, 0xCF, 0x11, 0xE0).
+ */
+function isOleBinaryBytes(bytes: Uint8Array): boolean {
+  if (bytes.length < 4) return false;
+  return bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0;
+}
+
+/**
+ * Resolves the specific Word document subtype:
+ * - 'word-html': HTML document with MSO/Word headers or styling (.doc)
+ * - 'docx': OpenXML ZIP document (.docx)
+ * - 'binary-doc': Legacy binary OLE Compound document (.doc)
+ */
+function resolveWordDocType(
+  filePath: string | undefined,
+  bytes: Uint8Array,
+  wordHtml: string | null
+): WordDocType {
+  // 1. If Word HTML markup was identified, it takes highest precedence for HTML .doc files
+  if (wordHtml !== null) {
+    return 'word-html';
+  }
+
+  // 2. OpenXML ZIP magic signature (PK\x03\x04)
+  if (isDocxZipBytes(bytes)) {
+    return 'docx';
+  }
+
+  // 3. Legacy OLE Compound Binary signature (D0 CF 11 E0)
+  if (isOleBinaryBytes(bytes)) {
+    return 'binary-doc';
+  }
+
+  // 4. File extension fallback
   if (filePath) {
     const lower = filePath.toLowerCase();
-    if (lower.endsWith('.doc') && !lower.endsWith('.docx')) {
-      return true;
+    if (lower.endsWith('.docx')) {
+      return 'docx';
+    }
+    if (lower.endsWith('.doc')) {
+      return 'binary-doc';
     }
   }
 
-  // Compound File Binary Format (OLE CFBF) magic bytes: D0 CF 11 E0
-  if (bytes.length >= 4) {
-    if (bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) {
-      return true;
-    }
-  }
-
-  return false;
+  return 'docx';
 }
 
 /**
@@ -177,6 +276,7 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
   filePath,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
   const [zoom, setZoom] = useState<number>(100);
@@ -184,16 +284,33 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
   const [renderError, setRenderError] = useState<string | null>(null);
   const [renderKey, setRenderKey] = useState<number>(0);
   const [copiedText, setCopiedText] = useState<boolean>(false);
+  const [viewTab, setViewTab] = useState<'document' | 'source'>('document');
+  const [iframeHeight, setIframeHeight] = useState<number>(1100);
 
   // Decode binary data & detect format
   const { buffer, bytes } = useMemo(() => decodeContentToArrayBuffer(content), [content]);
-  const isLegacyDoc = useMemo(() => isLegacyDocFile(filePath, bytes), [filePath, bytes]);
 
-  // Extract readable text fragments if legacy DOC
+  // Extract Word HTML if present
+  const wordHtml = useMemo(() => extractWordHtml(content, bytes), [content, bytes]);
+
+  // Determine document subtype
+  const docType = useMemo(
+    () => resolveWordDocType(filePath, bytes, wordHtml),
+    [filePath, bytes, wordHtml]
+  );
+
+  // Extract readable text fragments if legacy binary DOC
   const extractedLines = useMemo(() => {
-    if (!isLegacyDoc || bytes.length === 0) return [];
+    if (docType !== 'binary-doc' || bytes.length === 0) return [];
     return extractReadableTextFromLegacyDoc(bytes);
-  }, [isLegacyDoc, bytes]);
+  }, [docType, bytes]);
+
+  // Clean HTML for iframe preview (strip <script> tags for safe rendering)
+  const sanitizedWordHtml = useMemo(() => {
+    if (!wordHtml) return '';
+    // Strip scripts to adhere strictly to MV3 safety
+    return wordHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  }, [wordHtml]);
 
   // Derived file name
   const fileName = useMemo(() => {
@@ -202,21 +319,43 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
       const name = clean.split('/').pop();
       if (name) return name;
     }
-    return isLegacyDoc ? 'document.doc' : 'document.docx';
-  }, [filePath, isLegacyDoc]);
+    if (docType === 'word-html') return 'document.doc';
+    if (docType === 'binary-doc') return 'document.doc';
+    return 'document.docx';
+  }, [filePath, docType]);
+
+  // Derived title from HTML title tag if available
+  const documentTitle = useMemo(() => {
+    if (wordHtml) {
+      const titleMatch = wordHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
+      if (titleMatch && titleMatch[1]) {
+        return titleMatch[1].trim();
+      }
+    }
+    return null;
+  }, [wordHtml]);
 
   // Handle file download
   const handleDownload = useCallback(() => {
     try {
-      const mimeType = isLegacyDoc
-        ? 'application/msword'
-        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      const blob = new Blob([buffer], { type: mimeType });
+      let mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      let blob: Blob;
+
+      if (docType === 'word-html') {
+        mimeType = 'application/msword;charset=utf-8';
+        blob = new Blob([wordHtml || content], { type: mimeType });
+      } else if (docType === 'binary-doc') {
+        mimeType = 'application/msword';
+        blob = new Blob([buffer], { type: mimeType });
+      } else {
+        blob = new Blob([buffer], { type: mimeType });
+      }
+
       triggerBlobDownload(blob, fileName);
     } catch (err) {
       console.error('Failed to download Word document:', err);
     }
-  }, [buffer, fileName, isLegacyDoc]);
+  }, [docType, wordHtml, content, buffer, fileName]);
 
   // Zoom controls
   const handleZoomIn = () => {
@@ -252,9 +391,45 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
     setTimeout(() => setCopiedText(false), 2000);
   };
 
+  const handleCopyHtmlSource = () => {
+    if (!wordHtml) return;
+    navigator.clipboard.writeText(wordHtml);
+    setCopiedText(true);
+    setTimeout(() => setCopiedText(false), 2000);
+  };
+
+  const handlePrint = () => {
+    if (iframeRef.current?.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.focus();
+        iframeRef.current.contentWindow.print();
+      } catch (err) {
+        console.error('Print failed:', err);
+      }
+    } else {
+      window.print();
+    }
+  };
+
+  // Adjust iframe height when content loads
+  const handleIframeLoad = () => {
+    setIsLoading(false);
+    try {
+      if (iframeRef.current?.contentDocument) {
+        const doc = iframeRef.current.contentDocument;
+        const bodyHeight = doc.body?.scrollHeight || 0;
+        const htmlHeight = doc.documentElement?.scrollHeight || 0;
+        const calculated = Math.max(bodyHeight, htmlHeight, 1000);
+        setIframeHeight(calculated + 40);
+      }
+    } catch {
+      setIframeHeight(1200);
+    }
+  };
+
   // Render modern .docx using docx-preview
   useEffect(() => {
-    if (isLegacyDoc) {
+    if (docType !== 'docx') {
       setIsLoading(false);
       setRenderError(null);
       return;
@@ -299,87 +474,149 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [buffer, isLegacyDoc, renderKey]);
+  }, [buffer, docType, renderKey]);
 
   return (
     <div className="flex flex-col h-full w-full bg-card overflow-hidden select-text text-foreground">
       {/* Top Header & Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-card text-xs shrink-0">
-        {/* Left: Document Info */}
+        {/* Left: Document Info & Badges */}
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary shrink-0">
+          <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
             <FileText className="w-4 h-4" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground truncate max-w-[260px] sm:max-w-[360px]" title={fileName}>
-                {fileName}
+              <span className="font-semibold text-foreground truncate max-w-[260px] sm:max-w-[360px]" title={documentTitle || fileName}>
+                {documentTitle || fileName}
               </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground uppercase shrink-0">
-                {isLegacyDoc ? 'Word 97-2003 (.doc)' : 'DOCX'}
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase shrink-0 ${
+                  docType === 'word-html'
+                    ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                    : docType === 'binary-doc'
+                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {docType === 'word-html'
+                  ? 'Word HTML (.doc)'
+                  : docType === 'binary-doc'
+                  ? 'Word 97-2003 (.doc)'
+                  : 'DOCX'}
               </span>
             </div>
             <div className="text-[11px] text-muted-foreground flex items-center gap-2">
-              <span>{formatBytes(bytes.length)}</span>
+              <span>{formatBytes(bytes.length || content.length)}</span>
+              {documentTitle && (
+                <>
+                  <span>•</span>
+                  <span className="truncate max-w-[180px] font-mono text-[10px]">{fileName}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
 
         {/* Right: Controls & Download */}
         <div className="flex items-center gap-1.5 ml-auto">
-          {!isLegacyDoc && !renderError && (
-            <>
-              {/* Zoom Controls */}
-              <div className="flex items-center bg-muted/60 rounded-lg p-0.5 border border-border/50">
-                <button
-                  type="button"
-                  onClick={handleZoomOut}
-                  disabled={zoom <= 40}
-                  className="p-1.5 rounded-md hover:bg-background text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                  title="Zoom Out"
-                >
-                  <ZoomOut className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetZoom}
-                  className="px-2 py-1 text-[11px] font-mono text-muted-foreground hover:text-foreground hover:bg-background rounded-md cursor-pointer transition-colors"
-                  title="Reset Zoom to 100%"
-                >
-                  {zoom}%
-                </button>
-                <button
-                  type="button"
-                  onClick={handleZoomIn}
-                  disabled={zoom >= 200}
-                  className="p-1.5 rounded-md hover:bg-background text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                  title="Zoom In"
-                >
-                  <ZoomIn className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleFitToWidth}
-                  className="p-1.5 rounded-md hover:bg-background text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                  title="Fit to Width"
-                >
-                  <Maximize2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Refresh Document */}
+          {/* Word HTML View Mode Switcher (Document vs Source) */}
+          {docType === 'word-html' && (
+            <div className="flex items-center bg-muted/60 rounded-lg p-0.5 border border-border/50 mr-1">
               <button
                 type="button"
-                onClick={handleRetry}
-                className="p-1.5 rounded-lg border border-border/50 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                title="Reload Document"
+                onClick={() => setViewTab('document')}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                  viewTab === 'document'
+                    ? 'bg-background text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                title="Document View"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <Eye className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Document</span>
               </button>
-
-              <div className="w-[1px] h-4 bg-border mx-1" />
-            </>
+              <button
+                type="button"
+                onClick={() => setViewTab('source')}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                  viewTab === 'source'
+                    ? 'bg-background text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                title="HTML Source"
+              >
+                <Code className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">HTML</span>
+              </button>
+            </div>
           )}
+
+          {/* Zoom Controls for Visual Views */}
+          {((docType === 'docx' && !renderError) || (docType === 'word-html' && viewTab === 'document')) && (
+            <div className="flex items-center bg-muted/60 rounded-lg p-0.5 border border-border/50">
+              <button
+                type="button"
+                onClick={handleZoomOut}
+                disabled={zoom <= 40}
+                className="p-1.5 rounded-md hover:bg-background text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                title="Zoom Out"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleResetZoom}
+                className="px-2 py-1 text-[11px] font-mono text-muted-foreground hover:text-foreground hover:bg-background rounded-md cursor-pointer transition-colors"
+                title="Reset Zoom to 100%"
+              >
+                {zoom}%
+              </button>
+              <button
+                type="button"
+                onClick={handleZoomIn}
+                disabled={zoom >= 200}
+                className="p-1.5 rounded-md hover:bg-background text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                title="Zoom In"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleFitToWidth}
+                className="p-1.5 rounded-md hover:bg-background text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                title="Fit to Width"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Print Button for Word HTML */}
+          {docType === 'word-html' && viewTab === 'document' && (
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="p-1.5 rounded-lg border border-border/50 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+              title="Print Document (or Save as PDF)"
+            >
+              <Printer className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Refresh Document */}
+          {docType === 'docx' && !renderError && (
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="p-1.5 rounded-lg border border-border/50 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+              title="Reload Document"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          <div className="w-[1px] h-4 bg-border mx-1" />
 
           {/* Download Button */}
           <button
@@ -400,7 +637,7 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
         className="relative flex-1 overflow-auto p-4 sm:p-8 bg-muted/30 flex justify-center items-start min-h-0"
       >
         {/* Loading Overlay */}
-        {isLoading && (
+        {isLoading && docType === 'docx' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-card/85 backdrop-blur-xs z-20 gap-3">
             <LoaderCircle className="w-8 h-8 animate-spin text-primary" />
             <span className="text-xs sm:text-sm font-medium text-muted-foreground">
@@ -450,8 +687,92 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
           </div>
         )}
 
-        {/* Legacy Word 97-2003 View */}
-        {isLegacyDoc && !isLoading && (
+        {/* 1. Word HTML (.doc) Visual Document Preview */}
+        {docType === 'word-html' && viewTab === 'document' && (
+          <div
+            style={{
+              transform: `scale(${zoom / 100})`,
+              transformOrigin: 'top center',
+              transition: 'transform 0.15s ease-out',
+              width: '100%',
+              maxWidth: '850px',
+            }}
+            className="transition-transform"
+          >
+            <div className="shadow-lg bg-white rounded-sm border border-border/50 overflow-hidden">
+              <iframe
+                ref={iframeRef}
+                key={`word-html-${renderKey}`}
+                srcDoc={sanitizedWordHtml}
+                sandbox="allow-same-origin"
+                onLoad={handleIframeLoad}
+                style={{
+                  width: '100%',
+                  height: `${iframeHeight}px`,
+                  border: 'none',
+                  display: 'block',
+                  backgroundColor: '#ffffff',
+                }}
+                title="Word HTML Document Preview"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* 2. Word HTML (.doc) Raw Source Code View */}
+        {docType === 'word-html' && viewTab === 'source' && (
+          <div className="w-full max-w-4xl mx-auto bg-card border border-border/80 rounded-xl shadow-sm overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/40 text-xs">
+              <div className="flex items-center gap-2">
+                <Code className="w-4 h-4 text-blue-500" />
+                <span className="font-semibold text-foreground">Word HTML Source</span>
+                <span className="text-[11px] text-muted-foreground">({sanitizedWordHtml.length} characters)</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyHtmlSource}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground text-[11px] font-medium cursor-pointer transition-colors"
+              >
+                {copiedText ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="text-emerald-500">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy HTML</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <pre className="p-4 font-mono text-xs text-foreground bg-muted/20 overflow-auto max-h-[680px] leading-relaxed whitespace-pre-wrap select-text">
+              {sanitizedWordHtml}
+            </pre>
+          </div>
+        )}
+
+        {/* 3. Modern DOCX Container */}
+        {docType === 'docx' && !renderError && (
+          <div
+            style={{
+              transform: `scale(${zoom / 100})`,
+              transformOrigin: 'top center',
+              transition: 'transform 0.15s ease-out',
+              width: '100%',
+              maxWidth: '850px',
+            }}
+            className="transition-transform"
+          >
+            <div
+              ref={containerRef}
+              className="shadow-md bg-white text-black min-h-[800px] max-w-[850px] mx-auto p-12 rounded-sm border border-border/40 [&_.docx-wrapper]:bg-transparent [&_.docx-wrapper]:p-0 [&_.docx-wrapper]:w-full [&_.docx-wrapper>section.docx]:bg-transparent [&_.docx-wrapper>section.docx]:shadow-none [&_.docx-wrapper>section.docx]:mb-8 [&_.docx-wrapper>section.docx]:max-w-full overflow-hidden"
+            />
+          </div>
+        )}
+
+        {/* 4. Legacy Word 97-2003 View */}
+        {docType === 'binary-doc' && !isLoading && (
           <div className="w-full max-w-3xl mx-auto space-y-6">
             {/* Informative Card */}
             <div className="p-5 bg-card border border-border/80 rounded-xl shadow-sm">
@@ -469,7 +790,7 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed mb-4">
-                    This file is stored in Microsoft Word 97-2003 binary format (.doc). In-browser interactive rendering is optimized for modern Office Open XML documents (.docx). You can inspect the extracted text fragments below or download the file to view its full layout in Microsoft Word, LibreOffice, or Google Docs.
+                    This file is stored in Microsoft Word 97-2003 binary format (.doc). In-browser interactive rendering is optimized for modern Office Open XML documents (.docx) and Word HTML documents. You can inspect the extracted text fragments below or download the file to view its full layout in Microsoft Word, LibreOffice, or Google Docs.
                   </p>
                   <button
                     type="button"
@@ -531,25 +852,6 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
                 )}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Modern DOCX Preview Container */}
-        {!isLegacyDoc && !renderError && (
-          <div
-            style={{
-              transform: `scale(${zoom / 100})`,
-              transformOrigin: 'top center',
-              transition: 'transform 0.15s ease-out',
-              width: '100%',
-              maxWidth: '850px',
-            }}
-            className="transition-transform"
-          >
-            <div
-              ref={containerRef}
-              className="shadow-md bg-white text-black min-h-[800px] max-w-[850px] mx-auto p-12 rounded-sm border border-border/40 [&_.docx-wrapper]:bg-transparent [&_.docx-wrapper]:p-0 [&_.docx-wrapper]:w-full [&_.docx-wrapper>section.docx]:bg-transparent [&_.docx-wrapper>section.docx]:shadow-none [&_.docx-wrapper>section.docx]:mb-8 [&_.docx-wrapper>section.docx]:max-w-full overflow-hidden"
-            />
           </div>
         )}
       </div>
