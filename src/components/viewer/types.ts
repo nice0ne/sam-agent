@@ -6,6 +6,9 @@ export type ViewerType =
   | 'json'
   | 'mermaid'
   | 'zip'
+  | 'svg'
+  | 'audio'
+  | 'log'
   | 'code';
 
 /**
@@ -39,20 +42,33 @@ export function resolveViewerType(
     return 'csv';
   }
 
-  // 4. Image
+  // 4. SVG (check before general image)
+  if (p.endsWith('.svg') || m === 'image/svg+xml') {
+    return 'svg';
+  }
+
+  // 5. Image
   if (
     m.startsWith('image/') ||
-    /\.(png|jpe?g|gif|webp|ico|svg|bmp)$/i.test(p)
+    /\.(png|jpe?g|gif|webp|ico|bmp)$/i.test(p)
   ) {
     return 'image';
   }
 
-  // 5. JSON
+  // 6. Audio
+  if (
+    m.startsWith('audio/') ||
+    /\.(mp3|wav|ogg|m4a|aac|flac|weba)$/i.test(p)
+  ) {
+    return 'audio';
+  }
+
+  // 7. JSON
   if (p.endsWith('.json') || m === 'application/json') {
     return 'json';
   }
 
-  // 6. Mermaid Diagrams
+  // 8. Mermaid Diagrams
   if (
     p.endsWith('.mmd') ||
     p.endsWith('.mermaid') ||
@@ -61,13 +77,18 @@ export function resolveViewerType(
     return 'mermaid';
   }
 
-  // 7. ZIP Archives
+  // 9. ZIP Archives
   if (
     p.endsWith('.zip') ||
     m === 'application/zip' ||
     m === 'application/x-zip-compressed'
   ) {
     return 'zip';
+  }
+
+  // 10. Log Files
+  if (p.endsWith('.log') || /\.(log\.[0-9]+|log\.txt)$/i.test(p)) {
+    return 'log';
   }
 
   // Default fallback
