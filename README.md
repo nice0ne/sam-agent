@@ -118,6 +118,8 @@ Unlike standard chatbots, SAM-Agent can **see**, **understand**, and **act** upo
 
 ## 🚀 Getting Started
 
+> 📖 **Panduan Instalasi Lengkap:** Lihat [**INSTALL.md**](INSTALL.md) untuk panduan instalasi visual langkah demi langkah ke Chrome (tersedia cara cepat via pre-built ZIP tanpa perlu coding / install Node.js).
+
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (version 20 or higher recommended)
 - [npm](https://www.npmjs.com/) (version 10 or higher)
@@ -127,7 +129,7 @@ Unlike standard chatbots, SAM-Agent can **see**, **understand**, and **act** upo
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/sam-agent.git
+   git clone https://github.com/nice0ne/sam-agent.git
    cd sam-agent
    ```
 
