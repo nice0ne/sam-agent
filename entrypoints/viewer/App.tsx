@@ -23,6 +23,9 @@ import {
   JsonTreePreview,
   MermaidPreview,
   ZipArchivePreview,
+  SvgInspectorPreview,
+  AudioPlayerPreview,
+  LogStreamPreview,
   resolveViewerType,
 } from '../../src/components/viewer';
 import type { VfsFileRecord } from '../../src/types/agent';
@@ -317,6 +320,18 @@ export const App: React.FC = () => {
         return <MermaidPreview content={file.content} filePath={file.path} />;
       case 'zip':
         return <ZipArchivePreview file={file} />;
+      case 'svg':
+        return <SvgInspectorPreview content={file.content} filePath={file.path} />;
+      case 'audio':
+        return (
+          <AudioPlayerPreview
+            content={file.content}
+            filePath={file.path}
+            mimeType={file.mimeType}
+          />
+        );
+      case 'log':
+        return <LogStreamPreview content={file.content} filePath={file.path} />;
       case 'code':
       default:
         return <RawCodeViewer content={file.content} />;

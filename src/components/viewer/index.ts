@@ -8,3 +8,6 @@ export * from './HtmlSandboxPreview';
 export * from './JsonTreePreview';
 export * from './MermaidPreview';
 export * from './ZipArchivePreview';
+export * from './SvgInspectorPreview';
+export * from './AudioPlayerPreview';
+export * from './LogStreamPreview';
