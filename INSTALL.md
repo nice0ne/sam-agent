@@ -1,122 +1,127 @@
-# 📦 Panduan Instalasi SAM-Agent ke Google Chrome
+# 📦 SAM-Agent Installation Guide for Google Chrome
 
-Dokumen ini memandu Anda langkah demi langkah untuk memasang dan menjalankan **SAM-Agent** pada Google Chrome atau browser berbasis Chromium lainnya (Brave, Microsoft Edge, Arc, Opera).
-
----
-
-## 📑 Pilihan Metode Instalasi
-
-Pilih salah satu metode di bawah ini:
-- **[Metode 1: Menggunakan File ZIP Rilis Resmi (Paling Mudah)](#-metode-1-instalasi-via-pre-built-zip-rekomendasi)** — Cocok untuk pengguna umum tanpa perlu install Node.js / coding.
-- **[Metode 2: Build dari Source Code](#-metode-2-instalasi-dari-source-code-mode-developer)** — Cocok untuk pengembang yang ingin memodifikasi kode sumber.
+This guide provides step-by-step instructions to install and run **SAM-Agent** on Google Chrome or any Chromium-based browser (such as Brave, Microsoft Edge, Arc, and Opera).
 
 ---
 
-## 🚀 Metode 1: Instalasi via Pre-built ZIP (Rekomendasi)
+## 📑 Installation Options
 
-### Langkah 1: Unduh File Rilis
-1. Kunjungi halaman [GitHub Releases SAM-Agent](https://github.com/nice0ne/sam-agent/releases).
-2. Di versi terbaru (misal `v4.0.0`), unduh file bernama **`sam-agent-chrome-mv3.zip`**.
-3. Ekstrak (unzip) file `.zip` tersebut ke folder pilihan Anda di komputer (misal: `C:\Extensions\sam-agent` atau `~/Extensions/sam-agent`).
-   > **Catatan:** Jangan hapus atau pindahkan folder ini setelah dipasang, karena Chrome membaca file ekstensi langsung dari lokasi tersebut.
+Choose one of the methods below:
+- **[Method 1: Pre-built Release ZIP (Recommended)](#-method-1-installation-via-pre-built-zip-recommended)** — Best for general users. No Node.js or coding required.
+- **[Method 2: Build from Source Code (Developer Mode)](#-method-2-installation-from-source-code-developer-mode)** — Best for developers who want to inspect or modify the source code.
 
-### Langkah 2: Buka Halaman Extensions di Chrome
-1. Buka browser Google Chrome.
-2. Ketik **`chrome://extensions`** di bilah alamat URL (address bar) lalu tekan **Enter**.
-3. Di pojok kanan atas halaman, aktifkan sakelar **Developer mode** (Mode pengembang).
+---
+
+## 🚀 Method 1: Installation via Pre-built ZIP (Recommended)
+
+### Step 1: Download the Release Archive
+1. Visit the [SAM-Agent GitHub Releases](https://github.com/nice0ne/sam-agent/releases) page.
+2. In the latest release (e.g., `v4.1.1`), download the archive named **`sam-agent-ui-4.1.1-chrome.zip`** (or `sam-agent-chrome-mv3.zip`).
+3. Extract (unzip) the `.zip` archive into a permanent folder on your computer (e.g., `C:\Extensions\sam-agent` on Windows, or `~/Extensions/sam-agent` on macOS/Linux).
+   > **Note:** Do not delete or move this folder after installation, as Chrome loads and reads the extension files directly from this directory.
+
+### Step 2: Open the Chrome Extensions Page
+1. Open Google Chrome.
+2. Navigate to **`chrome://extensions`** in your address bar and press **Enter**.
+3. In the upper-right corner of the page, toggle on **Developer mode**.
 
 ![Developer Mode](https://developer.chrome.com/static/docs/extensions/get-started/tutorial/hello-world/image/the-developer-mode-toggle-b24ba5dc0fae9_1920.png)
 
-### Langkah 3: Muat Ekstensi (*Load Unpacked*)
-1. Di pojok kiri atas, klik tombol **Load unpacked** (Muat yang belum dibongkar).
-2. Cari dan pilih folder hasil ekstrak tadi (folder yang di dalamnya berisi file `manifest.json`, `background.js`, `sidepanel.html`, dll.).
-3. Klik **Select Folder** (Pilih Folder).
-4. 🎉 **SAM-Agent berhasil terpasang di browser Anda!**
+### Step 3: Load the Unpacked Extension
+1. In the upper-left corner, click the **Load unpacked** button.
+2. Browse to and select the extracted folder (the directory containing `manifest.json`, `background.js`, `sidepanel.html`, etc.).
+3. Click **Select Folder**.
+4. 🎉 **SAM-Agent is now installed and ready in your browser!**
 
 ---
 
-## 🛠️ Metode 2: Instalasi dari Source Code (Mode Developer)
+## 🛠️ Method 2: Installation from Source Code (Developer Mode)
 
-Gunakan metode ini jika Anda ingin berkontribusi atau menguji perubahan kode secara langsung.
+Use this method if you wish to contribute, inspect the code, or test local modifications.
 
-### Prasyarat
-- **Node.js** v20+ terpasang ([Unduh Node.js](https://nodejs.org/))
-- **Git** terpasang
+### Prerequisites
+- **Node.js** v20 or newer installed ([Download Node.js](https://nodejs.org/))
+- **Git** installed
 
-### Langkah Instalasi
-1. **Clone repositori:**
+### Build Steps
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/nice0ne/sam-agent.git
    cd sam-agent
    ```
 
-2. **Install dependensi:**
+2. **Install dependencies:**
    ```bash
    npm install
    ```
-   *(Skrip `postinstall` akan otomatis menyiapkan types WXT)*.
+   *(The `postinstall` script automatically prepares WXT types).*
 
-3. **Build ekstensi:**
+3. **Build the extension bundle:**
    ```bash
    npm run build
    ```
-   Hasil build siap pakai akan tersimpan di folder `.output/chrome-mv3`.
+   The production build will be generated in the `.output/chrome-mv3` directory.
+   
+   *(Optional)* To create a packaged ZIP bundle directly:
+   ```bash
+   npm run zip
+   ```
 
-4. **Muat ke Chrome:**
-   - Buka `chrome://extensions` di Chrome.
-   - Aktifkan **Developer mode** di pojok kanan atas.
-   - Klik **Load unpacked** dan arahkan ke folder:
-     `{lokasi-repo-sam-agent}/.output/chrome-mv3`
+4. **Load into Chrome:**
+   - Open `chrome://extensions` in Chrome.
+   - Ensure **Developer mode** is enabled in the top right.
+   - Click **Load unpacked** and select the folder:
+     `{path-to-sam-agent}/.output/chrome-mv3`
 
-> 💡 **Mode Live Development (Hot Reload):**
-> Jalankan perintah berikut untuk pengembangan aktif dengan auto-reload otomatis di browser:
+> 💡 **Live Development Mode (Hot Module Reload):**
+> Run the following command for active development with automated extension reloading:
 > ```bash
 > npm run dev
 > ```
 
 ---
 
-## 📌 Cara Menggunakan SAM-Agent
+## 📌 Getting Started & Keybindings
 
-Setelah terpasang, lakukan langkah berikut untuk kenyamanan pemakaian:
+Once installed, follow these steps for the optimal experience:
 
-1. **Sematkan (Pin) ke Toolbar Chrome:**
-   - Klik ikon puzzle (Extensions) di pojok kanan atas Chrome.
-   - Cari **SAM-Agent**, lalu klik ikon **Pin 📌**.
+1. **Pin SAM-Agent to the Chrome Toolbar:**
+   - Click the puzzle icon (**Extensions**) in the top-right corner of Chrome.
+   - Locate **SAM-Agent** and click the **Pin 📌** icon.
 
-2. **Membuka Sidepanel Utama:**
-   - Klik ikon SAM-Agent di toolbar, atau
-   - Tekan pintasan keyboard:
+2. **Open the Main Sidepanel:**
+   - Click the SAM-Agent icon on the toolbar, or
+   - Use the keyboard shortcut:
      - **Windows/Linux:** `Ctrl + Shift + L`
      - **macOS:** `Cmd + Shift + L`
 
-3. **Membuka In-Page Quick Command Palette:**
-   - Di halaman web mana pun, tekan:
-     - `Ctrl + Shift + .` (titik)
+3. **Open the In-Page Quick Command Palette:**
+   - On any webpage, press:
+     - `Ctrl + Shift + .` (period)
 
 ---
 
-## ⚙️ Pengaturan Awal (Koneksi LLM)
+## ⚙️ Initial Setup (Connecting LLM Providers)
 
-1. Buka Sidepanel SAM-Agent.
-2. Masuk ke tab **Settings ⚙️**.
-3. Pilih provider LLM yang ingin Anda gunakan:
-   - **Cloud Providers:** Masukkan API Key untuk Anthropic (Claude), OpenAI (GPT-4o), Google Gemini, DeepSeek, atau Zhipu AI.
-   - **Local LLM:** Hubungkan langsung ke **Ollama** (`http://localhost:11434`) atau **LM Studio** (`http://localhost:1234`) tanpa API key.
-4. Klik **Save Settings**. SAM-Agent sekarang siap membantu Anda!
+1. Open the SAM-Agent Sidepanel.
+2. Click on **AI Models & Settings ⚙️** (via the header navigation menu).
+3. Choose your preferred LLM provider:
+   - **Cloud Providers:** Enter your API Key for Anthropic (Claude), OpenAI (GPT-4o), Google Gemini, DeepSeek, or Zhipu AI.
+   - **Local LLMs:** Connect directly to **Ollama** (`http://localhost:11434`) or **LM Studio** (`http://localhost:1234`) without requiring an API key.
+4. Click **Save Settings**. SAM-Agent is now ready to assist your workflows!
 
 ---
 
-## ❓ Troubleshooting / Pertanyaan Umum
+## ❓ Troubleshooting & Frequently Asked Questions
 
-#### 1. Muncul error "Manifest file is missing or unreadable" saat Load Unpacked
-- **Penyebab:** Anda memilih folder induk yang salah.
-- **Solusi:** Pastikan folder yang Anda pilih adalah folder yang **langsung berisi file `manifest.json`**, bukan folder pembungkus di atasnya.
+#### 1. Error: "Manifest file is missing or unreadable" when clicking Load Unpacked
+- **Cause:** You selected the wrong parent directory.
+- **Solution:** Make sure you select the exact folder that **directly contains `manifest.json`**, not a wrapping parent folder.
 
-#### 2. Bagaimana cara memperbarui (update) ke versi terbaru?
-- **Jika via ZIP:** Unduh ZIP versi baru dari GitHub Releases, ekstrak dan timpa file di folder lama, lalu di `chrome://extensions`, klik ikon **Reload (putar balik 🔄)** pada kartu SAM-Agent.
-- **Jika via Git:** Jalankan `git pull`, lalu `npm run build`, dan klik ikon Reload di `chrome://extensions`.
+#### 2. How do I update to the latest version?
+- **If installed via ZIP:** Download the latest ZIP release from GitHub Releases, extract and overwrite the files in your existing extension folder, then go to `chrome://extensions` and click the **Reload 🔄** button on the SAM-Agent card.
+- **If installed via Git:** Run `git pull`, followed by `npm run build`, and click **Reload 🔄** on `chrome://extensions`.
 
-#### 3. Pintasan keyboard tidak merespons?
-- Buka `chrome://extensions/shortcuts` di Chrome.
-- Pastikan pintasan untuk SAM-Agent (`Ctrl+Shift+L` atau `Ctrl+Shift+.`) aktif dan tidak bentrok dengan ekstensi lain.
+#### 3. Keyboard shortcuts do not trigger?
+- Go to `chrome://extensions/shortcuts` in Chrome.
+- Verify that the shortcuts for SAM-Agent (`Ctrl+Shift+L` or `Ctrl+Shift+.`) are assigned and not conflicting with other extensions or system hotkeys.
