@@ -40,38 +40,38 @@
     --radius: 0.75rem;
   }
 
-  /* Dark Theme (Obsidian / Deep Slate & Modern Electric Blue) */
+  /* Dark Theme (Balanced Midnight Navy & Refined AI Blue) */
   :root.dark,
   html.dark,
   body.dark,
   .dark {
-    --background: #090d16;
+    --background: #0b1120;
     --foreground: #f8fafc;
     
-    --card: #111827;
+    --card: #131d31;
     --card-foreground: #f8fafc;
     
-    --popover: #111827;
+    --popover: #131d31;
     --popover-foreground: #f8fafc;
     
     --primary: #3b82f6;
     --primary-foreground: #ffffff;
     
-    --secondary: #1e293b;
+    --secondary: #1c273e;
     --secondary-foreground: #f1f5f9;
     
-    --muted: #1e293b;
+    --muted: #1c273e;
     --muted-foreground: #94a3b8;
     
-    --accent: #1e3a8a;
+    --accent: #1e3a5f;
     --accent-foreground: #dbeafe;
     
     --destructive: #f87171;
     --destructive-foreground: #ffffff;
     
-    --border: rgba(255, 255, 255, 0.1);
+    --border: rgba(255, 255, 255, 0.09);
     --input: rgba(255, 255, 255, 0.12);
-    --ring: rgba(59, 130, 246, 0.45);
+    --ring: rgba(59, 130, 246, 0.4);
     
     --success: #34d399;
     --warning: #fbbf24;

@@ -69,7 +69,7 @@ export const ActiveTabStrip: React.FC = () => {
             onClick={() => handleTabClick(tab.id)}
             className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all shrink-0 cursor-pointer border ${
               tab.active
-                ? 'bg-background border-primary/40 text-foreground shadow-2xs'
+                ? 'bg-primary/15 border-primary/40 text-primary font-medium shadow-2xs'
                 : 'bg-card/40 border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/70'
             }`}
             title={`${tab.title}\n${tab.url}`}

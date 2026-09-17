@@ -63,7 +63,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isWaiting
                     key={pIdx}
                     className={`my-1.5 p-2.5 rounded-xl border max-w-sm ${
                       isUser
-                        ? 'bg-black/15 border-white/20 text-primary-foreground'
+                        ? 'bg-white/10 border-white/20 text-white'
                         : 'bg-muted/60 border-border text-foreground'
                     }`}
                   >
@@ -72,7 +72,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isWaiting
                         <img
                           src={part.url}
                           alt={part.filename || 'Attached image'}
-                          className="max-h-56 max-w-full rounded-lg object-contain bg-black/20 border border-white/10"
+                          className="max-h-56 max-w-full rounded-lg object-contain bg-white/5 border border-white/15"
                         />
                         <div className="flex items-center justify-between text-[11px] font-mono opacity-80">
                           <span className="truncate max-w-[180px]">{part.filename || 'image'}</span>
@@ -158,7 +158,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isWaiting
               onClick={handleCopy}
               className={`p-1 rounded-md transition-colors cursor-pointer text-[10px] flex items-center gap-1 backdrop-blur-xs ${
                 isUser
-                  ? 'bg-black/20 hover:bg-black/30'
+                  ? 'bg-white/15 hover:bg-white/25 text-white/90 hover:text-white border border-white/20'
                   : 'bg-muted/80 hover:bg-muted border border-border/60 shadow-2xs'
               }`}
               title="Copy message content"
