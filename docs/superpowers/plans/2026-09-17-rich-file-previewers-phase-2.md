@@ -41,7 +41,7 @@
   export function resolveViewerType(path: string, mimeType?: string, content?: string): ViewerType;
   ```
 
-- [ ] **Step 1: Update `src/components/viewer/types.ts`**
+- [x] **Step 1: Update `src/components/viewer/types.ts`**
 
 Update `ViewerType` and `resolveViewerType`:
 ```typescript
@@ -140,7 +140,7 @@ export function resolveViewerType(
 }
 ```
 
-- [ ] **Step 2: Run TypeScript compile verification**
+- [x] **Step 2: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -148,7 +148,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 3: Commit Task 1**
+- [x] **Step 3: Commit Task 1**
 
 ```bash
 git add src/components/viewer/types.ts
@@ -174,7 +174,7 @@ git commit -m "feat(viewer): expand ViewerType to include svg, audio, and log"
   export const SvgInspectorPreview: React.FC<SvgInspectorPreviewProps>;
   ```
 
-- [ ] **Step 1: Create `src/components/viewer/SvgInspectorPreview.tsx`**
+- [x] **Step 1: Create `src/components/viewer/SvgInspectorPreview.tsx`**
 
 Key features:
 1. Dual-View Mode Switcher: "Visual Canvas" vs "XML Source".
@@ -194,11 +194,11 @@ Key features:
 6. In XML Source Tab:
    - Formatted monospace code view with line numbers and copy button.
 
-- [ ] **Step 2: Export in `src/components/viewer/index.ts`**
+- [x] **Step 2: Export in `src/components/viewer/index.ts`**
 
 Add `export * from './SvgInspectorPreview';` to `src/components/viewer/index.ts`.
 
-- [ ] **Step 3: Run TypeScript compile verification**
+- [x] **Step 3: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -206,7 +206,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 4: Commit Task 2**
+- [x] **Step 4: Commit Task 2**
 
 ```bash
 git add src/components/viewer/SvgInspectorPreview.tsx src/components/viewer/index.ts
@@ -233,7 +233,7 @@ git commit -m "feat(viewer): implement SvgInspectorPreview with dual visual-canv
   export const AudioPlayerPreview: React.FC<AudioPlayerPreviewProps>;
   ```
 
-- [ ] **Step 1: Create `src/components/viewer/AudioPlayerPreview.tsx`**
+- [x] **Step 1: Create `src/components/viewer/AudioPlayerPreview.tsx`**
 
 Key features:
 1. Decode base64 data URLs (`data:audio/...;base64,...`) or binary data into a Blob and create an Object URL.
@@ -250,11 +250,11 @@ Key features:
    - Centered audio player studio card with format badge.
    - Dynamic animated waveform equalizer bars when audio is playing.
 
-- [ ] **Step 2: Export in `src/components/viewer/index.ts`**
+- [x] **Step 2: Export in `src/components/viewer/index.ts`**
 
 Add `export * from './AudioPlayerPreview';` to `src/components/viewer/index.ts`.
 
-- [ ] **Step 3: Run TypeScript compile verification**
+- [x] **Step 3: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -262,7 +262,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 4: Commit Task 3**
+- [x] **Step 4: Commit Task 3**
 
 ```bash
 git add src/components/viewer/AudioPlayerPreview.tsx src/components/viewer/index.ts
@@ -288,7 +288,7 @@ git commit -m "feat(viewer): implement AudioPlayerPreview with modern playback s
   export const LogStreamPreview: React.FC<LogStreamPreviewProps>;
   ```
 
-- [ ] **Step 1: Create `src/components/viewer/LogStreamPreview.tsx`**
+- [x] **Step 1: Create `src/components/viewer/LogStreamPreview.tsx`**
 
 Key features:
 1. Log line parsing:
@@ -306,11 +306,11 @@ Key features:
    - Jump to Top & Jump to Bottom buttons.
    - Copy filtered logs & Copy all logs actions.
 
-- [ ] **Step 2: Export in `src/components/viewer/index.ts`**
+- [x] **Step 2: Export in `src/components/viewer/index.ts`**
 
 Add `export * from './LogStreamPreview';` to `src/components/viewer/index.ts`.
 
-- [ ] **Step 3: Run TypeScript compile verification**
+- [x] **Step 3: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -318,7 +318,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 4: Commit Task 4**
+- [x] **Step 4: Commit Task 4**
 
 ```bash
 git add src/components/viewer/LogStreamPreview.tsx src/components/viewer/index.ts
@@ -335,7 +335,7 @@ git commit -m "feat(viewer): implement LogStreamPreview with smart level parsing
 **Interfaces:**
 - Consumes: `SvgInspectorPreview`, `AudioPlayerPreview`, `LogStreamPreview`, `resolveViewerType`.
 
-- [ ] **Step 1: Update `entrypoints/viewer/App.tsx`**
+- [x] **Step 1: Update `entrypoints/viewer/App.tsx`**
 
 1. Import `SvgInspectorPreview`, `AudioPlayerPreview`, `LogStreamPreview` from `../../src/components/viewer`.
 2. In `renderContent()`, add cases to the `switch (viewerType)` statement:
@@ -343,7 +343,7 @@ git commit -m "feat(viewer): implement LogStreamPreview with smart level parsing
    - `'audio'` -> `<AudioPlayerPreview content={file.content} filePath={file.path} mimeType={file.mimeType} />`
    - `'log'` -> `<LogStreamPreview content={file.content} filePath={file.path} />`
 
-- [ ] **Step 2: Run TypeScript compile verification**
+- [x] **Step 2: Run TypeScript compile verification**
 
 Run:
 ```bash
@@ -351,7 +351,7 @@ npm run compile
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 3: Commit Task 5**
+- [x] **Step 3: Commit Task 5**
 
 ```bash
 git add entrypoints/viewer/App.tsx
@@ -365,7 +365,7 @@ git commit -m "feat(viewer): wire svg, audio, and log previewers into viewer App
 **Files:**
 - All modified and new files.
 
-- [ ] **Step 1: Clean compile test**
+- [x] **Step 1: Clean compile test**
 
 Run:
 ```bash
@@ -373,7 +373,7 @@ powershell -Command "Remove-Item -Recurse -Force .wxt; npm run compile"
 ```
 Expected: Exit code 0 with 0 errors.
 
-- [ ] **Step 2: Production build test**
+- [x] **Step 2: Production build test**
 
 Run:
 ```bash
@@ -381,7 +381,7 @@ npm run build
 ```
 Expected: Exit code 0, Chrome MV3 bundle created successfully in `.output/chrome-mv3`.
 
-- [ ] **Step 3: Push to remote repository**
+- [x] **Step 3: Push to remote repository**
 
 ```bash
 git push origin main
