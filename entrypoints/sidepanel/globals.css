@@ -5,7 +5,7 @@
     --font-sans: "Raleway", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     
-    /* Light Theme (Clean Slate & Vibrant Indigo) */
+    /* Light Theme (Clean Slate & Modern AI Blue) */
     --background: #f8fafc;
     --foreground: #0f172a;
     
@@ -15,7 +15,7 @@
     --popover: #ffffff;
     --popover-foreground: #0f172a;
     
-    --primary: #6366f1;
+    --primary: #2563eb;
     --primary-foreground: #ffffff;
     
     --secondary: #f1f5f9;
@@ -24,15 +24,15 @@
     --muted: #f1f5f9;
     --muted-foreground: #64748b;
     
-    --accent: #e0e7ff;
-    --accent-foreground: #3730a3;
+    --accent: #eff6ff;
+    --accent-foreground: #1d4ed8;
     
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
     
     --border: #e2e8f0;
     --input: #e2e8f0;
-    --ring: rgba(99, 102, 241, 0.4);
+    --ring: rgba(37, 99, 235, 0.35);
     
     --success: #10b981;
     --warning: #f59e0b;
@@ -40,7 +40,7 @@
     --radius: 0.75rem;
   }
 
-  /* Dark Theme (Obsidian / Deep Slate & Electric Violet-Indigo) */
+  /* Dark Theme (Obsidian / Deep Slate & Modern Electric Blue) */
   :root.dark,
   html.dark,
   body.dark,
@@ -54,7 +54,7 @@
     --popover: #111827;
     --popover-foreground: #f8fafc;
     
-    --primary: #818cf8;
+    --primary: #3b82f6;
     --primary-foreground: #ffffff;
     
     --secondary: #1e293b;
@@ -63,15 +63,15 @@
     --muted: #1e293b;
     --muted-foreground: #94a3b8;
     
-    --accent: #312e81;
-    --accent-foreground: #c7d2fe;
+    --accent: #1e3a8a;
+    --accent-foreground: #dbeafe;
     
     --destructive: #f87171;
     --destructive-foreground: #ffffff;
     
     --border: rgba(255, 255, 255, 0.1);
     --input: rgba(255, 255, 255, 0.12);
-    --ring: rgba(129, 140, 248, 0.5);
+    --ring: rgba(59, 130, 246, 0.45);
     
     --success: #34d399;
     --warning: #fbbf24;
@@ -162,10 +162,10 @@ body {
 /* Streaming subtle glow */
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 10px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.12);
   }
   50% {
-    box-shadow: 0 0 20px rgba(99, 102, 241, 0.25);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.28);
   }
 }
 

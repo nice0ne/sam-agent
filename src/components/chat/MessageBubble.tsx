@@ -33,7 +33,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isWaiting
       <div
         className={`relative max-w-[88%] rounded-2xl px-4 py-3 shadow-2xs transition-all select-text ${
           isUser
-            ? 'bg-primary text-primary-foreground rounded-tr-xs shadow-xs'
+            ? 'bg-primary text-primary-foreground rounded-tr-xs shadow-xs border border-primary/20'
             : 'bg-card border border-border text-foreground rounded-tl-xs shadow-xs w-full'
         } ${isWaiting ? 'animate-streaming-glow' : ''}`}
       >
@@ -133,9 +133,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isWaiting
               }
               if (part.type === 'reasoning') {
                 return (
-                  <details key={pIdx} className="my-1.5 text-xs text-muted-foreground border-l-2 border-primary/40 pl-2">
-                    <summary className="cursor-pointer font-medium hover:text-foreground select-none">Reasoning Thought Process</summary>
-                    <div className="mt-1 italic whitespace-pre-wrap">{part.text}</div>
+                  <details key={pIdx} className="my-2 text-xs text-muted-foreground border-l-2 border-primary/60 bg-primary/5 rounded-r-lg p-2.5">
+                    <summary className="cursor-pointer font-medium text-primary hover:text-primary/80 select-none flex items-center gap-1.5">
+                      <span>Reasoning Process</span>
+                    </summary>
+                    <div className="mt-1.5 text-foreground/85 leading-relaxed italic whitespace-pre-wrap pl-1">{part.text}</div>
                   </details>
                 );
               }

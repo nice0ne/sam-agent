@@ -178,7 +178,7 @@ export const Header: React.FC<HeaderProps> = ({ title, tokenUsage }) => {
                   view === 'threads' ? 'text-primary font-medium bg-primary/5' : 'text-foreground'
                 }`}
               >
-                <History className="size-3.5 text-indigo-500" />
+                <History className="size-3.5 text-blue-500" />
                 <span>Chat History</span>
               </button>
 
@@ -201,7 +201,7 @@ export const Header: React.FC<HeaderProps> = ({ title, tokenUsage }) => {
                 className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-muted transition-colors text-foreground cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
-                  {isDark ? <Sun className="size-3.5 text-amber-400" /> : <Moon className="size-3.5 text-indigo-500" />}
+                  {isDark ? <Sun className="size-3.5 text-amber-400" /> : <Moon className="size-3.5 text-blue-500" />}
                   <span>{isDark ? 'Light Theme' : 'Dark Theme'}</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground uppercase font-mono">{isDark ? 'Dark' : 'Light'}</span>
