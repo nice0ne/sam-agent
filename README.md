@@ -47,25 +47,34 @@ Unlike standard chatbots, SAM-Agent can **see**, **understand**, and **act** upo
 - **Page Action Execution**: Natively fills forms, clicks buttons, selects options, handles checkboxes/radios, and interacts with complex SPA pages via `chrome.scripting`.
 - **Action Guardrails**: Strict safety rules prevent modifying disabled/readonly system fields unless explicitly intended.
 
-<div align="center" style="margin-top: 12px; margin-bottom: 16px;">
-  <img src="docs/video/Sam-Automation.gif" alt="Autonomous Browser Automation Demo" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
-</div>
+<details>
+  <summary><b>🎬 View Automation Demo</b></summary>
+  <div align="center" style="margin-top: 10px; margin-bottom: 12px;">
+    <img src="docs/video/Sam-Automation.gif" alt="Autonomous Browser Automation Demo" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+  </div>
+</details>
 
 #### 📝 Intelligent Form Filling
 - Seamlessly navigates complex forms, inputs validation data, selects dropdowns, and triggers events naturally.
 
-<div align="center" style="margin-top: 12px; margin-bottom: 16px;">
-  <img src="docs/video/Sam-Fill-Form.gif" alt="Intelligent Form Filling Demo" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
-</div>
+<details>
+  <summary><b>🎬 View Form Filling Demo</b></summary>
+  <div align="center" style="margin-top: 10px; margin-bottom: 12px;">
+    <img src="docs/video/Sam-Fill-Form.gif" alt="Intelligent Form Filling Demo" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+  </div>
+</details>
 
 ### 3. 📑 Multi-Tab Pipeline Orchestration
 - **Cross-Tab Awareness**: Discovers all open browser tabs in real time.
 - **Bidirectional Control**: The agent can autonomously switch between tabs (`switchTab`), open target research URLs (`openTab`), and close temporary tabs (`closeTab`).
 - **Data Aggregation**: Extract information from Tab A, process it, switch to Tab B, and submit the compiled data into internal workflows.
 
-<div align="center" style="margin-top: 12px; margin-bottom: 16px;">
-  <img src="docs/video/Sam-Function-Tab.gif" alt="Multi-Tab Pipeline Orchestration Demo" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
-</div>
+<details>
+  <summary><b>🎬 View Multi-Tab Pipeline Demo</b></summary>
+  <div align="center" style="margin-top: 10px; margin-bottom: 12px;">
+    <img src="docs/video/Sam-Function-Tab.gif" alt="Multi-Tab Pipeline Orchestration Demo" width="100%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+  </div>
+</details>
 
 ### 4. 💾 Virtual File System (VFS) & Local Workspace Sync
 - **Local-First VFS**: In-browser virtual file system backed by IndexedDB (`Dexie.js`) preserving code, data, and notes across sessions.
