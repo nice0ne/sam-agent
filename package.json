@@ -1,11 +1,12 @@
 {
   "name": "sam-agent-ui",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wxt",
     "build": "wxt build",
+    "zip": "wxt zip",
     "compile": "wxt prepare && tsc --noEmit",
     "postinstall": "wxt prepare"
   },
