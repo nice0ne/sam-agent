@@ -599,7 +599,7 @@ async function parseAndExecuteActions(
   const results: ActionResult[] = [];
 
   for (const act of actionsToRun) {
-    const isTablessAction = act.action === 'writeFile';
+    const isTablessAction = act.action === 'writeFile' || act.action === 'generatePptx';
     const isNavAction = act.action === 'navigate' || act.action === 'openTab' || (act as any).action === 'newTab';
     const isTabAction = act.action === 'switchTab' || act.action === 'closeTab';
     const isToolAction = act.action === 'runTool';
