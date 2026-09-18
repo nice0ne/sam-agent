@@ -329,12 +329,16 @@ export async function generatePptxBlob(specInput: PresentationSpec): Promise<Blo
   const spec = normalizePresentationSpec(specInput);
   const PptxGen = (pptxgen as any).default || pptxgen;
   const pres = new PptxGen();
-  pres.layout = 'LAYOUT_16x9';
+  // Use standard modern PowerPoint 16:9 widescreen (13.333" x 7.5")
+  pres.layout = 'LAYOUT_WIDE';
   pres.title = spec.title;
   pres.author = spec.author || 'SAM-Agent';
 
   const theme = resolveTheme(spec);
-  const fontFace = theme.fontFace || 'Arial';
+  // Default to reliable universal Office font
+  const fontFace = theme.fontFace && ['Calibri', 'Arial', 'Segoe UI', 'Georgia'].includes(theme.fontFace)
+    ? theme.fontFace
+    : 'Calibri';
 
   // 1. Title Slide
   const titleSlide = pres.addSlide();
@@ -342,21 +346,21 @@ export async function generatePptxBlob(specInput: PresentationSpec): Promise<Blo
 
   // Decorative accent bar
   titleSlide.addShape(pres.ShapeType.rect, {
-    x: 0.8,
-    y: 1.8,
-    w: 0.15,
-    h: 2.8,
+    x: 1.0,
+    y: 2.0,
+    w: 0.18,
+    h: 3.2,
     fill: { color: theme.primary },
     line: { color: theme.primary, width: 0 },
   });
 
   // Main title
   titleSlide.addText(spec.title, {
-    x: 1.2,
-    y: 1.8,
-    w: 11.0,
-    h: 1.6,
-    fontSize: 40,
+    x: 1.5,
+    y: 2.0,
+    w: 10.8,
+    h: 1.8,
+    fontSize: 42,
     fontFace,
     bold: true,
     color: theme.primary,
@@ -366,24 +370,24 @@ export async function generatePptxBlob(specInput: PresentationSpec): Promise<Blo
   // Subtitle / Description
   if (spec.subtitle) {
     titleSlide.addText(spec.subtitle, {
-      x: 1.2,
-      y: 3.5,
-      w: 11.0,
+      x: 1.5,
+      y: 3.9,
+      w: 10.8,
       h: 0.9,
-      fontSize: 20,
+      fontSize: 22,
       fontFace,
       color: theme.mutedText,
     });
   }
 
   // Footer metadata on title slide
-  const dateStr = spec.date || new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  const dateStr = spec.date || new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
   titleSlide.addText(`${spec.author || 'SAM-Agent'} • ${dateStr}`, {
-    x: 1.2,
-    y: 6.2,
-    w: 10.0,
+    x: 1.5,
+    y: 6.4,
+    w: 10.8,
     h: 0.4,
-    fontSize: 12,
+    fontSize: 13,
     fontFace,
     color: theme.mutedText,
   });
@@ -398,8 +402,8 @@ export async function generatePptxBlob(specInput: PresentationSpec): Promise<Blo
     slide.addText(s.title, {
       x: 0.8,
       y: 0.5,
-      w: 11.5,
-      h: 0.8,
+      w: 11.7,
+      h: 0.7,
       fontSize: 28,
       fontFace,
       bold: true,
@@ -410,8 +414,8 @@ export async function generatePptxBlob(specInput: PresentationSpec): Promise<Blo
     if (s.subtitle) {
       slide.addText(s.subtitle, {
         x: 0.8,
-        y: 1.3,
-        w: 11.5,
+        y: 1.25,
+        w: 11.7,
         h: 0.4,
         fontSize: 14,
         fontFace,
@@ -419,108 +423,133 @@ export async function generatePptxBlob(specInput: PresentationSpec): Promise<Blo
       });
     }
 
-    // Header divider line
+    // Header divider line (use 0.01 height to avoid zero-dimension OpenXML drawing error)
+    const lineY = s.subtitle ? 1.7 : 1.35;
     slide.addShape(pres.ShapeType.line, {
       x: 0.8,
-      y: 1.75,
-      w: 11.5,
-      h: 0,
+      y: lineY,
+      w: 11.7,
+      h: 0.01,
       line: { color: theme.border, width: 1 },
     });
 
     // Slide Layout rendering
-    const startY = s.subtitle ? 2.0 : 1.9;
+    const startY = s.subtitle ? 1.9 : 1.55;
+    const cardH = 5.0;
 
     if (s.layout === 'stat' && s.keyStat) {
-      // Big Stat callout card
+      // Big Stat callout card (Left)
       slide.addShape(pres.ShapeType.roundRect, {
         x: 0.8,
         y: startY,
-        w: 4.5,
-        h: 4.2,
+        w: 4.4,
+        h: cardH,
         fill: { color: theme.cardBg },
         line: { color: theme.border, width: 1 },
         rectRadius: 0.15,
       });
 
-      slide.addText(s.keyStat.value, {
+      slide.addText(String(s.keyStat.value || '-'), {
         x: 1.0,
-        y: startY + 0.8,
-        w: 4.1,
+        y: startY + 1.2,
+        w: 4.0,
         h: 1.5,
-        fontSize: 54,
+        fontSize: 60,
         fontFace,
         bold: true,
         color: theme.accent,
         align: 'center',
       });
 
-      slide.addText(s.keyStat.label, {
+      slide.addText(String(s.keyStat.label || ''), {
         x: 1.0,
-        y: startY + 2.4,
-        w: 4.1,
-        h: 0.8,
-        fontSize: 16,
+        y: startY + 2.8,
+        w: 4.0,
+        h: 1.0,
+        fontSize: 17,
         fontFace,
         color: theme.mutedText,
         align: 'center',
       });
 
-      // Side bullets or body
-      if (s.bulletPoints && s.bulletPoints.length > 0) {
-        const bulletItems = s.bulletPoints.map((bp) => ({
-          text: bp,
-          options: { fontSize: 16, color: theme.text, bullet: true, spaceAfter: 12 },
-        }));
-        slide.addText(bulletItems, {
-          x: 5.8,
-          y: startY,
-          w: 6.5,
-          h: 4.2,
-          fontFace,
-        });
-      }
+      // Side bullets or body card (Right)
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: 5.5,
+        y: startY,
+        w: 7.0,
+        h: cardH,
+        fill: { color: theme.cardBg },
+        line: { color: theme.border, width: 1 },
+        rectRadius: 0.15,
+      });
+
+      const statBullets = s.bulletPoints && s.bulletPoints.length > 0
+        ? s.bulletPoints.map((bp) => ({
+            text: bp,
+            options: { fontSize: 17, color: theme.text, bullet: true, spaceAfter: 14 },
+          }))
+        : s.body
+        ? [{ text: s.body, options: { fontSize: 17, color: theme.text, spaceAfter: 14 } }]
+        : [{ text: 'Ringkasan data tercatat.', options: { fontSize: 17, color: theme.text } }];
+
+      slide.addText(statBullets, {
+        x: 5.9,
+        y: startY + 0.5,
+        w: 6.2,
+        h: cardH - 1.0,
+        fontFace,
+      });
     } else if (s.layout === 'two-column' && s.twoColumn) {
       // Two-column layout
+      const colW = 5.7;
+
+      // Left Column
       slide.addShape(pres.ShapeType.roundRect, {
         x: 0.8,
         y: startY,
-        w: 5.5,
-        h: 4.2,
+        w: colW,
+        h: cardH,
         fill: { color: theme.cardBg },
         line: { color: theme.border, width: 1 },
         rectRadius: 0.15,
       });
-      const leftItems = s.twoColumn.left.map((bp) => ({
-        text: bp,
-        options: { fontSize: 15, color: theme.text, bullet: true, spaceAfter: 10 },
-      }));
+      const leftItems = s.twoColumn.left && s.twoColumn.left.length > 0
+        ? s.twoColumn.left.map((bp) => ({
+            text: bp,
+            options: { fontSize: 16, color: theme.text, bullet: true, spaceAfter: 10 },
+          }))
+        : [{ text: 'Poin utama kolom 1', options: { fontSize: 16, color: theme.text } }];
+
       slide.addText(leftItems, {
         x: 1.1,
-        y: startY + 0.3,
-        w: 4.9,
-        h: 3.6,
+        y: startY + 0.4,
+        w: colW - 0.6,
+        h: cardH - 0.8,
         fontFace,
       });
 
+      // Right Column
       slide.addShape(pres.ShapeType.roundRect, {
         x: 6.8,
         y: startY,
-        w: 5.5,
-        h: 4.2,
+        w: colW,
+        h: cardH,
         fill: { color: theme.cardBg },
         line: { color: theme.border, width: 1 },
         rectRadius: 0.15,
       });
-      const rightItems = s.twoColumn.right.map((bp) => ({
-        text: bp,
-        options: { fontSize: 15, color: theme.text, bullet: true, spaceAfter: 10 },
-      }));
+      const rightItems = s.twoColumn.right && s.twoColumn.right.length > 0
+        ? s.twoColumn.right.map((bp) => ({
+            text: bp,
+            options: { fontSize: 16, color: theme.text, bullet: true, spaceAfter: 10 },
+          }))
+        : [{ text: 'Poin utama kolom 2', options: { fontSize: 16, color: theme.text } }];
+
       slide.addText(rightItems, {
         x: 7.1,
-        y: startY + 0.3,
-        w: 4.9,
-        h: 3.6,
+        y: startY + 0.4,
+        w: colW - 0.6,
+        h: cardH - 0.8,
         fontFace,
       });
     } else {
@@ -528,8 +557,8 @@ export async function generatePptxBlob(specInput: PresentationSpec): Promise<Blo
       slide.addShape(pres.ShapeType.roundRect, {
         x: 0.8,
         y: startY,
-        w: 11.5,
-        h: 4.4,
+        w: 11.7,
+        h: cardH,
         fill: { color: theme.cardBg },
         line: { color: theme.border, width: 1 },
         rectRadius: 0.15,
@@ -539,32 +568,47 @@ export async function generatePptxBlob(specInput: PresentationSpec): Promise<Blo
       if (s.body) {
         textParts.push({
           text: s.body,
-          options: { fontSize: 17, color: theme.text, spaceAfter: 14 },
+          options: { fontSize: 18, color: theme.text, spaceAfter: 14 },
         });
       }
-      if (s.bulletPoints) {
+      if (s.bulletPoints && s.bulletPoints.length > 0) {
         s.bulletPoints.forEach((bp) => {
           textParts.push({
             text: bp,
-            options: { fontSize: 16, color: theme.text, bullet: true, spaceAfter: 10 },
+            options: { fontSize: 17, color: theme.text, bullet: true, spaceAfter: 12 },
           });
+        });
+      }
+      if (textParts.length === 0) {
+        textParts.push({
+          text: s.title,
+          options: { fontSize: 18, color: theme.text },
         });
       }
 
       slide.addText(textParts, {
         x: 1.2,
-        y: startY + 0.4,
-        w: 10.7,
-        h: 3.6,
+        y: startY + 0.5,
+        w: 10.9,
+        h: cardH - 1.0,
         fontFace,
       });
     }
 
-    // Slide footer (slide number & title)
-    slide.addText(`${i + 1} / ${spec.slides.length}`, {
-      x: 11.0,
-      y: 6.6,
-      w: 1.3,
+    // Slide footer (presentation title on left, slide number on right)
+    slide.addText(spec.title, {
+      x: 0.8,
+      y: 6.85,
+      w: 8.0,
+      h: 0.3,
+      fontSize: 10,
+      fontFace,
+      color: theme.mutedText,
+    });
+    slide.addText(`Slide ${i + 1} / ${spec.slides.length}`, {
+      x: 10.5,
+      y: 6.85,
+      w: 2.0,
       h: 0.3,
       fontSize: 10,
       fontFace,
@@ -585,7 +629,11 @@ export async function generatePptxBlob(specInput: PresentationSpec): Promise<Blo
 /**
  * Generate interactive HTML slide deck for live preview in viewer.html
  */
-export function generateInteractiveHtmlSlides(specInput: PresentationSpec, pptxDownloadName?: string): string {
+export function generateInteractiveHtmlSlides(
+  specInput: PresentationSpec,
+  pptxDownloadName?: string,
+  pptxDataUrl?: string
+): string {
   const spec = normalizePresentationSpec(specInput);
   const theme = resolveTheme(spec);
   const isDark = theme.isDark !== false;
@@ -753,7 +801,7 @@ export function generateInteractiveHtmlSlides(specInput: PresentationSpec, pptxD
     <div style="display: flex; align-items: center; gap: 8px;">
       ${
         pptxDownloadName
-          ? `<a href="${encodeURI(pptxDownloadName)}" download class="btn btn-primary">⬇️ Download .PPTX</a>`
+          ? `<a href="${pptxDataUrl || encodeURI(pptxDownloadName)}" download="${escapeHtml(pptxDownloadName)}" class="btn btn-primary">⬇️ Download .PPTX</a>`
           : ''
       }
       <button class="btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
@@ -950,8 +998,8 @@ export async function createPresentationArtifact(
   // Save .pptx into VFS
   await saveVfsFile(pptxPath, base64DataUrl, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
 
-  // 2. Generate interactive HTML slides
-  const htmlContent = generateInteractiveHtmlSlides(spec, pptxFilename);
+  // 2. Generate interactive HTML slides with embedded PPTX data URL
+  const htmlContent = generateInteractiveHtmlSlides(spec, pptxFilename, base64DataUrl);
   await saveVfsFile(htmlPath, htmlContent, 'text/html');
 
   return {

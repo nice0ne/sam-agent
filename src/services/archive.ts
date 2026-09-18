@@ -35,7 +35,7 @@ export function downloadVfsFile(file: {
   if (dataUrlMatch) {
     try {
       const mime = dataUrlMatch[1] || file.mimeType || 'application/octet-stream';
-      const base64Data = dataUrlMatch[2];
+      const base64Data = dataUrlMatch[2].trim().replace(/\s+/g, '');
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
@@ -47,6 +47,30 @@ export function downloadVfsFile(file: {
       return;
     } catch (e) {
       console.warn('Failed to parse base64 data URL for download, falling back to raw blob:', e);
+    }
+  }
+
+  // Check if content is raw base64 string without data: prefix (common for office & binary files)
+  const trimmed = file.content.trim().replace(/\s+/g, '');
+  if (
+    trimmed.startsWith('UEsDB') ||
+    /\.(pptx|docx|xlsx|pdf|zip|png|jpe?g)$/i.test(file.path)
+  ) {
+    try {
+      if (/^[A-Za-z0-9+/=]+$/.test(trimmed)) {
+        const byteCharacters = atob(trimmed);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const mime = file.mimeType || detectMimeType(file.path) || 'application/octet-stream';
+        const blob = new Blob([byteArray], { type: mime });
+        triggerBlobDownload(blob, filename);
+        return;
+      }
+    } catch (e) {
+      console.warn('Failed to parse raw base64 for download:', e);
     }
   }
 
