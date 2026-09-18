@@ -14,3 +14,4 @@ export * from './LogStreamPreview';
 export * from './PdfDocumentPreview';
 export * from './ExcelSpreadsheetPreview';
 export * from './WordDocumentPreview';
+export * from './PptxPresentationPreview';

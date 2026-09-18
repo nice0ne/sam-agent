@@ -12,6 +12,7 @@ export type ViewerType =
   | 'pdf'
   | 'excel'
   | 'docx'
+  | 'pptx'
   | 'code';
 
 /**
@@ -90,6 +91,18 @@ export function resolveViewerType(
     m === 'application/msword'
   ) {
     return 'docx';
+  }
+
+  // 10. PowerPoint Presentations
+  if (
+    p.endsWith('.pptx') ||
+    p.endsWith('.ppt') ||
+    p.endsWith('.ppsx') ||
+    p.endsWith('.potx') ||
+    m === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+    m === 'application/vnd.ms-powerpoint'
+  ) {
+    return 'pptx';
   }
 
   // 10. JSON

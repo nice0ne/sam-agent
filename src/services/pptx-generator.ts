@@ -146,6 +146,150 @@ export const THEMES: Record<PresetThemeName, ThemeColors> = {
 };
 
 /**
+ * Normalize individual slide spec to handle various AI model response schemas
+ */
+export function normalizeSlideSpec(raw: any, index: number): SlideSpec {
+  const title = String(raw?.title || raw?.heading || raw?.header || raw?.name || `Slide ${index + 1}`).trim();
+  const subtitle = raw?.subtitle || raw?.description || raw?.summary ? String(raw.subtitle || raw.description || raw.summary) : undefined;
+  const body = raw?.body || raw?.content || raw?.text ? String(raw.body || raw.content || raw.text) : undefined;
+  const notes = raw?.notes ? String(raw.notes) : undefined;
+
+  // 1. Bullet points normalization
+  let bulletPoints: string[] | undefined;
+  const rawBullets = raw?.bulletPoints || raw?.bullets || raw?.points || raw?.items;
+  if (Array.isArray(rawBullets)) {
+    bulletPoints = rawBullets
+      .map((b) => (typeof b === 'object' && b !== null ? JSON.stringify(b) : String(b)))
+      .filter((b) => b.trim().length > 0);
+  } else if (typeof rawBullets === 'string' && rawBullets.trim()) {
+    bulletPoints = [rawBullets.trim()];
+  }
+
+  // 2. Key stat normalization (statNumber / statLabel or keyStat or stat)
+  let keyStat: { value: string; label: string } | undefined;
+  if (raw?.keyStat && typeof raw.keyStat === 'object') {
+    keyStat = {
+      value: String(raw.keyStat.value || raw.keyStat.number || ''),
+      label: String(raw.keyStat.label || raw.keyStat.text || raw.keyStat.title || ''),
+    };
+  } else if (raw?.statNumber || raw?.statLabel) {
+    keyStat = {
+      value: String(raw.statNumber || ''),
+      label: String(raw.statLabel || ''),
+    };
+  } else if (raw?.stat && typeof raw.stat === 'object') {
+    keyStat = {
+      value: String(raw.stat.value || raw.stat.number || ''),
+      label: String(raw.stat.label || raw.stat.text || ''),
+    };
+  }
+
+  // 3. Two column normalization (columnLeft / columnRight or twoColumn)
+  let twoColumn: { left: string[]; right: string[] } | undefined;
+  if (raw?.twoColumn && typeof raw.twoColumn === 'object') {
+    const l = Array.isArray(raw.twoColumn.left) ? raw.twoColumn.left : raw.twoColumn.left ? [raw.twoColumn.left] : [];
+    const r = Array.isArray(raw.twoColumn.right) ? raw.twoColumn.right : raw.twoColumn.right ? [raw.twoColumn.right] : [];
+    twoColumn = {
+      left: l.map((item: any) => String(item)),
+      right: r.map((item: any) => String(item)),
+    };
+  } else if (raw?.columnLeft || raw?.columnRight) {
+    const l = Array.isArray(raw.columnLeft) ? raw.columnLeft : raw.columnLeft ? [raw.columnLeft] : [];
+    const r = Array.isArray(raw.columnRight) ? raw.columnRight : raw.columnRight ? [raw.columnRight] : [];
+    twoColumn = {
+      left: l.map((item: any) => String(item)),
+      right: r.map((item: any) => String(item)),
+    };
+  }
+
+  // 4. Layout determination
+  let layout: SlideSpec['layout'] = raw?.layout;
+  if (!layout || layout === 'title') {
+    if (keyStat && keyStat.value) {
+      layout = 'stat';
+    } else if (twoColumn && (twoColumn.left.length > 0 || twoColumn.right.length > 0)) {
+      layout = 'two-column';
+    } else if (raw?.layout === 'conclusion') {
+      layout = 'conclusion';
+    } else {
+      layout = 'content';
+    }
+  }
+
+  return {
+    title,
+    subtitle,
+    body,
+    bulletPoints,
+    keyStat,
+    twoColumn,
+    layout,
+    notes,
+  };
+}
+
+/**
+ * Normalize entire presentation spec so whatever format the LLM emits is safely transformed
+ */
+export function normalizePresentationSpec(rawInput: any): PresentationSpec {
+  const raw = rawInput?.spec || rawInput?.presentation || rawInput?.data || rawInput || {};
+  const title = String(raw.title || rawInput.title || 'Ringkasan Presentasi').trim();
+  const subtitle = raw.subtitle || rawInput.subtitle ? String(raw.subtitle || rawInput.subtitle) : undefined;
+  const author = raw.author || rawInput.author || 'SAM Agent';
+  const date = raw.date || rawInput.date || new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  // Resolve theme
+  const themeInput = String(raw.theme || rawInput.theme || 'corporate-blue').toLowerCase();
+  let theme: PresetThemeName = 'corporate-blue';
+  if (themeInput in THEMES) {
+    theme = themeInput as PresetThemeName;
+  } else if (themeInput.includes('dark')) {
+    theme = 'modern-dark';
+  } else if (themeInput.includes('emerald') || themeInput.includes('green')) {
+    theme = 'vibrant-emerald';
+  } else if (themeInput.includes('purple')) {
+    theme = 'royal-purple';
+  } else if (themeInput.includes('sunset') || themeInput.includes('warm')) {
+    theme = 'sunset-warm';
+  } else if (themeInput.includes('minimal') || themeInput.includes('light')) {
+    theme = 'minimal-light';
+  } else if (themeInput.includes('oled') || themeInput.includes('black')) {
+    theme = 'midnight-oled';
+  } else if (themeInput.includes('cream')) {
+    theme = 'elegant-cream';
+  }
+
+  const rawSlides = raw.slides || rawInput.slides;
+  let slides: SlideSpec[] = [];
+  if (Array.isArray(rawSlides) && rawSlides.length > 0) {
+    slides = rawSlides.map((s, idx) => normalizeSlideSpec(s, idx));
+  } else {
+    // Graceful fallback slide deck if empty or omitted
+    slides = [
+      {
+        title: 'Ringkasan Eksekutif',
+        layout: 'content',
+        bulletPoints: [
+          'Dokumen berhasil diproses dan dianalisis.',
+          'Poin-poin utama dirangkum dalam presentasi ini.',
+        ],
+      },
+    ];
+  }
+
+  return {
+    title,
+    subtitle,
+    author,
+    date,
+    theme,
+    customTheme: raw.customTheme || rawInput.customTheme,
+    fontFamily: raw.fontFamily || rawInput.fontFamily,
+    slides,
+  };
+}
+
+/**
  * Resolve effective theme colors with support for preset and custom overrides
  */
 export function resolveTheme(spec: PresentationSpec): ThemeColors {
@@ -181,8 +325,10 @@ export function resolveTheme(spec: PresentationSpec): ThemeColors {
 /**
  * Generate a standard Microsoft PowerPoint (.pptx) binary Blob from presentation specification
  */
-export async function generatePptxBlob(spec: PresentationSpec): Promise<Blob> {
-  const pres = new pptxgen();
+export async function generatePptxBlob(specInput: PresentationSpec): Promise<Blob> {
+  const spec = normalizePresentationSpec(specInput);
+  const PptxGen = (pptxgen as any).default || pptxgen;
+  const pres = new PptxGen();
   pres.layout = 'LAYOUT_16x9';
   pres.title = spec.title;
   pres.author = spec.author || 'SAM-Agent';
@@ -439,7 +585,8 @@ export async function generatePptxBlob(spec: PresentationSpec): Promise<Blob> {
 /**
  * Generate interactive HTML slide deck for live preview in viewer.html
  */
-export function generateInteractiveHtmlSlides(spec: PresentationSpec, pptxDownloadName?: string): string {
+export function generateInteractiveHtmlSlides(specInput: PresentationSpec, pptxDownloadName?: string): string {
+  const spec = normalizePresentationSpec(specInput);
   const theme = resolveTheme(spec);
   const isDark = theme.isDark !== false;
   const hex = (c: string) => (c.startsWith('#') ? c : `#${c}`);
@@ -774,14 +921,16 @@ function escapeHtml(str: string): string {
  * saving both into VFS under /workspace/<baseName>.pptx and /workspace/<baseName>.html
  */
 export async function createPresentationArtifact(
-  spec: PresentationSpec,
+  specInput: any,
   baseName?: string
 ): Promise<{ pptxPath: string; htmlPath: string; pptxBlob: Blob }> {
+  const spec = normalizePresentationSpec(specInput);
   const cleanTitle = (baseName || spec.title || 'presentation')
     .toLowerCase()
     .replace(/[^a-z0-9_-]/g, '-')
     .replace(/-+/g, '-')
-    .slice(0, 36);
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 36) || 'presentation';
 
   const pptxFilename = `${cleanTitle}.pptx`;
   const pptxPath = `/workspace/${pptxFilename}`;

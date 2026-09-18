@@ -89,20 +89,15 @@ export interface RunToolAction {
 
 export interface GeneratePptxAction {
   action: 'generatePptx';
-  title: string;
+  title?: string;
   subtitle?: string;
   author?: string;
-  theme?: 'modern-dark' | 'corporate-blue' | 'vibrant-emerald' | 'minimal-light';
-  slides: Array<{
-    title: string;
-    subtitle?: string;
-    body?: string;
-    bulletPoints?: string[];
-    keyStat?: { value: string; label: string };
-    twoColumn?: { left: string[]; right: string[] };
-    layout?: 'title' | 'content' | 'two-column' | 'stat' | 'conclusion';
-    notes?: string;
-  }>;
+  theme?: string;
+  slides?: Array<any>;
+  spec?: any;
+  baseName?: string;
+  filename?: string;
+  [key: string]: any;
 }
 
 export type BrowserAction =
@@ -1221,18 +1216,16 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
   if (action.action === 'generatePptx') {
     try {
       const { createPresentationArtifact } = await import('./pptx-generator');
-      const res = await createPresentationArtifact({
-        title: action.title,
-        subtitle: action.subtitle,
-        author: action.author,
-        theme: action.theme,
-        slides: action.slides,
-      });
+      const act = action as any;
+      const rawSpec = act.spec || act.presentation || act.data || act;
+      const baseName = act.baseName || act.filename || rawSpec.filename;
+
+      const res = await createPresentationArtifact(rawSpec, baseName);
 
       // Automatically open live slide presentation in a viewer tab
       let viewerTabId: number | undefined;
       try {
-        const viewerUrl = chrome.runtime.getURL(`viewer.html?path=${encodeURIComponent(res.htmlPath)}`);
+        const viewerUrl = chrome.runtime.getURL(`viewer.html?path=${encodeURIComponent(res.pptxPath)}`);
         const tab = await chrome.tabs.create({ url: viewerUrl, active: true });
         viewerTabId = tab.id;
       } catch (_) {}

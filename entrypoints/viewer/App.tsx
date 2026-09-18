@@ -29,6 +29,7 @@ import {
   PdfDocumentPreview,
   ExcelSpreadsheetPreview,
   WordDocumentPreview,
+  PptxPresentationPreview,
   resolveViewerType,
 } from '../../src/components/viewer';
 import type { VfsFileRecord } from '../../src/types/agent';
@@ -347,6 +348,14 @@ export const App: React.FC = () => {
         return <ExcelSpreadsheetPreview content={file.content} filePath={file.path} />;
       case 'docx':
         return <WordDocumentPreview content={file.content} filePath={file.path} />;
+      case 'pptx':
+        return (
+          <PptxPresentationPreview
+            content={file.content}
+            filePath={file.path}
+            mimeType={file.mimeType}
+          />
+        );
       case 'code':
       default:
         return <RawCodeViewer content={file.content} />;
