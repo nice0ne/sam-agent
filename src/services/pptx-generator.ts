@@ -293,8 +293,8 @@ export function normalizePresentationSpec(rawInput: any): PresentationSpec {
  * Resolve effective theme colors with support for preset and custom overrides
  */
 export function resolveTheme(spec: PresentationSpec): ThemeColors {
-  const presetKey = spec.theme && THEMES[spec.theme] ? spec.theme : 'modern-dark';
-  const base = THEMES[presetKey];
+  const presetKey = spec.theme && THEMES[spec.theme] ? spec.theme : 'corporate-blue';
+  const base = THEMES[presetKey] || THEMES['corporate-blue'];
 
   if (!spec.customTheme) {
     return {
@@ -670,7 +670,7 @@ export function generateInteractiveHtmlSlides(
   ]);
 
   return `<!DOCTYPE html>
-<html lang="en" class="${isDark ? 'dark' : ''}">
+<html lang="en" class="${isDark ? 'dark' : ''}" data-theme="${spec.theme || 'corporate-blue'}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -824,6 +824,7 @@ export function generateInteractiveHtmlSlides(
   </footer>
 
   <script>
+    const presentationTheme = "${spec.theme || 'corporate-blue'}";
     const slides = ${slidesDataJson};
     let currentIndex = 0;
 

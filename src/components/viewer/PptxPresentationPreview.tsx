@@ -23,7 +23,8 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { triggerBlobDownload } from '../../services/archive';
-import { getVfsFile } from '../../services/vfs';
+import { getVfsFile, saveVfsFile } from '../../services/vfs';
+import { generatePptxBlob, type PresentationSpec } from '../../services/pptx-generator';
 
 export interface PptxPresentationPreviewProps {
   content: string;
@@ -48,12 +49,13 @@ export interface PptxSlideData {
 
 export type PresentationThemeKey =
   | 'corporate-blue'
+  | 'minimal-light'
   | 'modern-dark'
   | 'vibrant-emerald'
-  | 'minimal-light'
   | 'sunset-warm'
   | 'royal-purple'
-  | 'midnight-oled';
+  | 'midnight-oled'
+  | 'elegant-cream';
 
 interface ThemeDefinition {
   name: string;
@@ -71,7 +73,7 @@ interface ThemeDefinition {
 const THEME_DEFS: Record<PresentationThemeKey, ThemeDefinition> = {
   'corporate-blue': {
     name: 'Corporate Blue',
-    bg: '#0F172A',
+    bg: '#F8FAFC',
     stageBg: '#F8FAFC',
     cardBg: '#FFFFFF',
     cardBorder: '#E2E8F0',
@@ -81,9 +83,21 @@ const THEME_DEFS: Record<PresentationThemeKey, ThemeDefinition> = {
     accentSubtle: '#DBEAFE',
     isDark: false,
   },
+  'minimal-light': {
+    name: 'Minimal Light',
+    bg: '#FFFFFF',
+    stageBg: '#FFFFFF',
+    cardBg: '#F4F4F5',
+    cardBorder: '#E4E4E7',
+    textPrimary: '#18181B',
+    textSecondary: '#71717A',
+    accent: '#2563EB',
+    accentSubtle: '#EFF6FF',
+    isDark: false,
+  },
   'modern-dark': {
     name: 'Modern Dark',
-    bg: '#0B0F19',
+    bg: '#0F172A',
     stageBg: '#0F172A',
     cardBg: '#1E293B',
     cardBorder: '#334155',
@@ -95,7 +109,7 @@ const THEME_DEFS: Record<PresentationThemeKey, ThemeDefinition> = {
   },
   'vibrant-emerald': {
     name: 'Vibrant Emerald',
-    bg: '#042F2E',
+    bg: '#064E3B',
     stageBg: '#064E3B',
     cardBg: '#065F46',
     cardBorder: '#047857',
@@ -105,21 +119,9 @@ const THEME_DEFS: Record<PresentationThemeKey, ThemeDefinition> = {
     accentSubtle: '#065F46',
     isDark: true,
   },
-  'minimal-light': {
-    name: 'Minimal Light',
-    bg: '#F4F4F5',
-    stageBg: '#FFFFFF',
-    cardBg: '#F8FAFC',
-    cardBorder: '#E4E4E7',
-    textPrimary: '#18181B',
-    textSecondary: '#71717A',
-    accent: '#2563EB',
-    accentSubtle: '#EFF6FF',
-    isDark: false,
-  },
   'sunset-warm': {
     name: 'Sunset Warm',
-    bg: '#451A03',
+    bg: '#FFFBEB',
     stageBg: '#FFFBEB',
     cardBg: '#FFFFFF',
     cardBorder: '#FDE68A',
@@ -131,7 +133,7 @@ const THEME_DEFS: Record<PresentationThemeKey, ThemeDefinition> = {
   },
   'royal-purple': {
     name: 'Royal Purple',
-    bg: '#0F0B24',
+    bg: '#1E1B4B',
     stageBg: '#1E1B4B',
     cardBg: '#312E81',
     cardBorder: '#4338CA',
@@ -152,6 +154,18 @@ const THEME_DEFS: Record<PresentationThemeKey, ThemeDefinition> = {
     accent: '#00E5FF',
     accentSubtle: '#083344',
     isDark: true,
+  },
+  'elegant-cream': {
+    name: 'Elegant Cream',
+    bg: '#FDFBF7',
+    stageBg: '#FDFBF7',
+    cardBg: '#FFFFFF',
+    cardBorder: '#E7E5E4',
+    textPrimary: '#292524',
+    textSecondary: '#78716C',
+    accent: '#0F766E',
+    accentSubtle: '#CCFBF1',
+    isDark: false,
   },
 };
 
@@ -214,7 +228,7 @@ function decodeContentToUint8Array(content: string): Uint8Array {
 /**
  * Extract slides directly from OpenXML PowerPoint container (ppt/slides/slide*.xml)
  */
-async function parsePptxFromOpenXml(bytes: Uint8Array): Promise<PptxSlideData[]> {
+async function parsePptxFromOpenXml(bytes: Uint8Array): Promise<{ slides: PptxSlideData[]; detectedTheme: PresentationThemeKey }> {
   const zip = await JSZip.loadAsync(bytes);
   const slideEntries = Object.keys(zip.files)
     .filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
@@ -224,8 +238,40 @@ async function parsePptxFromOpenXml(bytes: Uint8Array): Promise<PptxSlideData[]>
       return numA - numB;
     });
 
+  let detectedTheme: PresentationThemeKey = 'corporate-blue';
+  try {
+    const slide1Xml = await zip.file('ppt/slides/slide1.xml')?.async('string');
+    const masterXml = await zip.file('ppt/slideMasters/slideMaster1.xml')?.async('string');
+    const themeXml = await zip.file('ppt/theme/theme1.xml')?.async('string');
+    const xmlToCheck = (slide1Xml || '') + ' ' + (masterXml || '') + ' ' + (themeXml || '');
+
+    const bgMatch =
+      xmlToCheck.match(/<p:bg>[\s\S]*?<a:srgbClr\s+val="([0-9A-Fa-f]{6})"/i) ||
+      xmlToCheck.match(/<p:bgPr>[\s\S]*?<a:srgbClr\s+val="([0-9A-Fa-f]{6})"/i) ||
+      xmlToCheck.match(/<a:solidFill>[\s\S]*?<a:srgbClr\s+val="([0-9A-Fa-f]{6})"/i);
+
+    if (bgMatch && bgMatch[1]) {
+      const hex = bgMatch[1].toUpperCase();
+      if (hex === '0F172A' || hex === '0B0F19') detectedTheme = 'modern-dark';
+      else if (hex === '064E3B' || hex === '042F2E') detectedTheme = 'vibrant-emerald';
+      else if (hex === '1E1B4B' || hex === '0F0B24') detectedTheme = 'royal-purple';
+      else if (hex === '000000') detectedTheme = 'midnight-oled';
+      else if (hex === 'FFFBEB' || hex === '451A03') detectedTheme = 'sunset-warm';
+      else if (hex === 'FDFBF7') detectedTheme = 'elegant-cream';
+      else if (hex === 'F8FAFC') detectedTheme = 'corporate-blue';
+      else if (hex === 'FFFFFF' || hex === 'F4F4F5') detectedTheme = 'minimal-light';
+      else {
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        detectedTheme = brightness < 128 ? 'modern-dark' : 'corporate-blue';
+      }
+    }
+  } catch (_) {}
+
   if (slideEntries.length === 0) {
-    return [];
+    return { slides: [], detectedTheme };
   }
 
   const slides: PptxSlideData[] = [];
@@ -328,7 +374,7 @@ async function parsePptxFromOpenXml(bytes: Uint8Array): Promise<PptxSlideData[]>
     });
   }
 
-  return slides;
+  return { slides, detectedTheme };
 }
 
 export const PptxPresentationPreview: React.FC<PptxPresentationPreviewProps> = ({
@@ -346,6 +392,7 @@ export const PptxPresentationPreview: React.FC<PptxPresentationPreviewProps> = (
   const [showNotes, setShowNotes] = useState(false);
   const [copiedOutline, setCopiedOutline] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const thumbnailListRef = useRef<HTMLDivElement>(null);
@@ -398,9 +445,9 @@ export const PptxPresentationPreview: React.FC<PptxPresentationPreviewProps> = (
                   }));
 
                   // Check if theme was in HTML
-                  const themeMatch = companionFile.content.match(
-                    /data-theme="([a-z-]+)"/i
-                  );
+                  const themeMatch =
+                    companionFile.content.match(/data-theme="([a-z-]+)"/i) ||
+                    companionFile.content.match(/presentationTheme\s*=\s*["']([a-z-]+)["']/i);
                   if (themeMatch && themeMatch[1] && (themeMatch[1] in THEME_DEFS)) {
                     detectedTheme = themeMatch[1] as PresentationThemeKey;
                   }
@@ -414,9 +461,10 @@ export const PptxPresentationPreview: React.FC<PptxPresentationPreviewProps> = (
 
         // 2. If companion HTML didn't produce slides, parse directly from .pptx OpenXML container
         if (loadedSlides.length === 0 && rawBytes.byteLength > 0) {
-          const openXmlSlides = await parsePptxFromOpenXml(rawBytes);
-          if (openXmlSlides.length > 0) {
-            loadedSlides = openXmlSlides;
+          const openXmlRes = await parsePptxFromOpenXml(rawBytes);
+          if (openXmlRes.slides.length > 0) {
+            loadedSlides = openXmlRes.slides;
+            detectedTheme = openXmlRes.detectedTheme;
           }
         }
 
@@ -515,14 +563,67 @@ export const PptxPresentationPreview: React.FC<PptxPresentationPreviewProps> = (
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
-  // Download PPTX
-  const handleDownload = useCallback(() => {
-    if (rawBytes.byteLength === 0) return;
-    const blob = new Blob([rawBytes as any], {
-      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    });
-    triggerBlobDownload(blob, filename);
-  }, [rawBytes, filename]);
+  // Download PPTX with full theme synchronization
+  const handleDownload = useCallback(async () => {
+    if (downloading) return;
+
+    // 1. If we have structured slide data, compile native .pptx matching the selected preview theme
+    if (slides.length > 0) {
+      setDownloading(true);
+      try {
+        const spec: PresentationSpec = {
+          title: slides[0]?.title || filename.replace(/\.pptx$/i, ''),
+          subtitle: slides[0]?.subtitle,
+          author: slides[0]?.author || 'SAM-Agent',
+          date: slides[0]?.date || new Date().toLocaleDateString('id-ID'),
+          theme: selectedTheme as any,
+          slides: slides.map((s) => ({
+            title: s.title,
+            subtitle: s.subtitle,
+            body: s.body,
+            bulletPoints: s.bulletPoints,
+            keyStat: s.keyStat,
+            twoColumn: s.twoColumn,
+            layout: s.layout,
+            notes: s.notes,
+          })),
+        };
+
+        const themedBlob = await generatePptxBlob(spec);
+        triggerBlobDownload(themedBlob, filename);
+
+        // Also update VFS record so viewer header download stays synchronized
+        if (filePath) {
+          try {
+            const reader = new FileReader();
+            reader.onload = async () => {
+              if (typeof reader.result === 'string') {
+                await saveVfsFile(
+                  filePath,
+                  reader.result,
+                  'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                );
+              }
+            };
+            reader.readAsDataURL(themedBlob);
+          } catch (_) {}
+        }
+        return;
+      } catch (err) {
+        console.error('Failed to generate themed PPTX, falling back to original binary:', err);
+      } finally {
+        setDownloading(false);
+      }
+    }
+
+    // 2. Fallback to raw bytes if slide generation is not possible
+    if (rawBytes.byteLength > 0) {
+      const blob = new Blob([rawBytes as any], {
+        type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      });
+      triggerBlobDownload(blob, filename);
+    }
+  }, [slides, selectedTheme, filename, rawBytes, filePath, downloading]);
 
   // Copy outline
   const handleCopyOutline = useCallback(() => {
@@ -579,10 +680,11 @@ export const PptxPresentationPreview: React.FC<PptxPresentationPreviewProps> = (
           <button
             type="button"
             onClick={handleDownload}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors cursor-pointer shadow-xs"
+            disabled={downloading}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors cursor-pointer shadow-xs disabled:opacity-60"
           >
-            <Download className="size-3.5" />
-            Download .pptx ({formattedSize})
+            {downloading ? <LoaderCircle className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            {downloading ? 'Generating...' : `Download .pptx (${formattedSize})`}
           </button>
         </div>
       </div>
@@ -679,11 +781,16 @@ export const PptxPresentationPreview: React.FC<PptxPresentationPreviewProps> = (
           <button
             type="button"
             onClick={handleDownload}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium transition-colors cursor-pointer shadow-xs"
-            title="Download file PowerPoint (.pptx) asli"
+            disabled={downloading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium transition-colors cursor-pointer shadow-xs disabled:opacity-60"
+            title={`Download file PowerPoint (.pptx) dengan tema ${theme.name}`}
           >
-            <Download className="size-3.5" />
-            <span>Download .pptx</span>
+            {downloading ? (
+              <LoaderCircle className="size-3.5 animate-spin" />
+            ) : (
+              <Download className="size-3.5" />
+            )}
+            <span>{downloading ? 'Generating...' : 'Download .pptx'}</span>
           </button>
         </div>
       </div>
