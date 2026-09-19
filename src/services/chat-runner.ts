@@ -448,7 +448,9 @@ async function streamFromProvider(
     }
 
     const baseUrl = (storageData[`${provider}_baseUrl`] || defaultBaseUrl).replace(/\/+$/, '');
-    const endpoint = `${baseUrl}/chat/completions`;
+    const endpoint = baseUrl.endsWith('/chat/completions')
+      ? baseUrl
+      : `${baseUrl}/chat/completions`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -490,16 +492,45 @@ async function streamFromProvider(
         buffer = lines.pop() || '';
         for (const line of lines) {
           const trimmed = line.trim();
-          if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
+          if (trimmed.startsWith('data:') && trimmed.replace(/^data:\s*/, '') !== '[DONE]') {
             try {
-              const parsed = JSON.parse(trimmed.slice(6));
-              const delta = parsed.choices?.[0]?.delta?.content || '';
+              const parsed = JSON.parse(trimmed.replace(/^data:\s*/, ''));
+              const delta = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.text || '';
               if (delta) {
                 accumulated += delta;
                 await onUpdateText(accumulated);
               }
             } catch (_) {}
           }
+        }
+      }
+
+      // If leftover buffer has content (or if provider sent non-streaming JSON)
+      const trimmedRemaining = buffer.trim();
+      if (trimmedRemaining) {
+        if (trimmedRemaining.startsWith('data:') && trimmedRemaining.replace(/^data:\s*/, '') !== '[DONE]') {
+          try {
+            const parsed = JSON.parse(trimmedRemaining.replace(/^data:\s*/, ''));
+            const delta = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.text || '';
+            if (delta) {
+              accumulated += delta;
+              await onUpdateText(accumulated);
+            }
+          } catch (_) {}
+        } else if (!accumulated) {
+          try {
+            const parsed = JSON.parse(trimmedRemaining);
+            const content =
+              parsed.choices?.[0]?.message?.content ||
+              parsed.choices?.[0]?.delta?.content ||
+              parsed.choices?.[0]?.text ||
+              parsed.response ||
+              '';
+            if (content) {
+              accumulated = content;
+              await onUpdateText(accumulated);
+            }
+          } catch (_) {}
         }
       }
     }

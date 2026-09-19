@@ -257,7 +257,9 @@ export const SettingsView: React.FC = () => {
       const targetBaseUrl = baseUrl.trim().replace(/\/+$/, '');
 
       if (currentProvider.id === 'openai' || currentProvider.id === 'deepseek' || currentProvider.id === 'custom_openai' || currentProvider.id === 'glm') {
-        const endpoint = `${targetBaseUrl}/chat/completions`;
+        const endpoint = targetBaseUrl.endsWith('/chat/completions')
+          ? targetBaseUrl
+          : `${targetBaseUrl}/chat/completions`;
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
         };
@@ -271,7 +273,8 @@ export const SettingsView: React.FC = () => {
           body: JSON.stringify({
             model: activeModelId,
             messages: [{ role: 'user', content: 'Say "OK"' }],
-            max_tokens: 5,
+            max_tokens: 10,
+            stream: false,
           }),
         });
 
@@ -280,12 +283,52 @@ export const SettingsView: React.FC = () => {
           throw new Error(`HTTP ${res.status}: ${errBody.slice(0, 140) || res.statusText}`);
         }
 
-        const data = await res.json();
-        const reply = data.choices?.[0]?.message?.content || 'Connected successfully!';
+        const rawText = await res.text();
+        let reply = '';
+
+        // Check if response is Server-Sent Events (SSE / streaming) e.g. "data: {"id"..."
+        if (rawText.trim().startsWith('data:') || rawText.includes('\ndata:')) {
+          const lines = rawText.split('\n');
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data:') && trimmed.replace(/^data:\s*/, '') !== '[DONE]') {
+              try {
+                const jsonStr = trimmed.replace(/^data:\s*/, '');
+                const chunk = JSON.parse(jsonStr);
+                const delta =
+                  chunk.choices?.[0]?.delta?.content ||
+                  chunk.choices?.[0]?.message?.content ||
+                  chunk.choices?.[0]?.text ||
+                  '';
+                reply += delta;
+              } catch (_) {}
+            }
+          }
+          if (!reply.trim()) {
+            reply = 'Connected successfully! (streaming)';
+          }
+        } else {
+          // Standard JSON response
+          try {
+            const data = JSON.parse(rawText);
+            reply =
+              data.choices?.[0]?.message?.content ||
+              data.choices?.[0]?.delta?.content ||
+              data.choices?.[0]?.text ||
+              data.response ||
+              data.message ||
+              'Connected successfully!';
+          } catch (_) {
+            reply = rawText.trim().slice(0, 80) || 'Connected successfully!';
+          }
+        }
+
         setTestStatus('success');
         setTestMessage(`Success! Response: "${reply.trim()}"`);
       } else if (currentProvider.id === 'anthropic') {
-        const endpoint = `${targetBaseUrl}/v1/messages`;
+        const endpoint = targetBaseUrl.endsWith('/messages')
+          ? targetBaseUrl
+          : `${targetBaseUrl}/v1/messages`;
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: {
@@ -297,7 +340,8 @@ export const SettingsView: React.FC = () => {
           body: JSON.stringify({
             model: activeModelId,
             messages: [{ role: 'user', content: 'Say "OK"' }],
-            max_tokens: 5,
+            max_tokens: 10,
+            stream: false,
           }),
         });
 
@@ -306,8 +350,14 @@ export const SettingsView: React.FC = () => {
           throw new Error(`HTTP ${res.status}: ${errBody.slice(0, 140) || res.statusText}`);
         }
 
-        const data = await res.json();
-        const reply = data.content?.[0]?.text || 'Connected successfully!';
+        const rawText = await res.text();
+        let reply = '';
+        try {
+          const data = JSON.parse(rawText);
+          reply = data.content?.[0]?.text || 'Connected successfully!';
+        } catch (_) {
+          reply = rawText.trim().slice(0, 80) || 'Connected successfully!';
+        }
         setTestStatus('success');
         setTestMessage(`Success! Response: "${reply.trim()}"`);
       } else if (currentProvider.id === 'gemini') {
@@ -317,7 +367,7 @@ export const SettingsView: React.FC = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: 'Say "OK"' }] }],
-            generationConfig: { maxOutputTokens: 5 },
+            generationConfig: { maxOutputTokens: 10 },
           }),
         });
 
@@ -326,8 +376,14 @@ export const SettingsView: React.FC = () => {
           throw new Error(`HTTP ${res.status}: ${errBody.slice(0, 140) || res.statusText}`);
         }
 
-        const data = await res.json();
-        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Connected successfully!';
+        const rawText = await res.text();
+        let reply = '';
+        try {
+          const data = JSON.parse(rawText);
+          reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Connected successfully!';
+        } catch (_) {
+          reply = rawText.trim().slice(0, 80) || 'Connected successfully!';
+        }
         setTestStatus('success');
         setTestMessage(`Success! Response: "${reply.trim()}"`);
       }

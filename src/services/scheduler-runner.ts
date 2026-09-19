@@ -79,7 +79,16 @@ export async function executeScheduledTask(
       responseText = data.content?.[0]?.text || 'Task completed with no output.';
     } else if (provider === 'openai' && apiKey) {
       const baseUrl = (storageData.openai_baseUrl || 'https://api.openai.com').replace(/\/+$/, '');
-      const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      let endpoint = baseUrl;
+      if (!endpoint.endsWith('/chat/completions')) {
+        if (endpoint.endsWith('/v1')) {
+          endpoint = `${endpoint}/chat/completions`;
+        } else {
+          endpoint = `${endpoint}/v1/chat/completions`;
+        }
+      }
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,6 +101,7 @@ export async function executeScheduledTask(
             { role: 'user', content: task.prompt },
           ],
           max_tokens: 1024,
+          stream: false,
         }),
       });
 
@@ -100,8 +110,29 @@ export async function executeScheduledTask(
         throw new Error(`OpenAI HTTP ${res.status}: ${errBody.slice(0, 120)}`);
       }
 
-      const data = await res.json();
-      responseText = data.choices?.[0]?.message?.content || 'Task completed with no output.';
+      const rawText = await res.text();
+      let responseContent = '';
+      if (rawText.trim().startsWith('data:') || rawText.includes('\ndata:')) {
+        const lines = rawText.split('\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data:') && trimmed.replace(/^data:\s*/, '') !== '[DONE]') {
+            try {
+              const chunk = JSON.parse(trimmed.replace(/^data:\s*/, ''));
+              responseContent += chunk.choices?.[0]?.delta?.content || chunk.choices?.[0]?.message?.content || '';
+            } catch (_) {}
+          }
+        }
+      } else {
+        try {
+          const data = JSON.parse(rawText);
+          responseContent = data.choices?.[0]?.message?.content || data.choices?.[0]?.delta?.content || '';
+        } catch (_) {
+          responseContent = rawText;
+        }
+      }
+
+      responseText = responseContent.trim() || 'Task completed with no output.';
     } else {
       // Fallback or simulated response when API key is unconfigured or in offline/mock mode
       responseText = `[Autonomous Task Completed at ${new Date().toLocaleTimeString()}]: Executed instruction "${task.title}". Status: OK.`;
