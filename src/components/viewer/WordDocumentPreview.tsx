@@ -19,6 +19,7 @@ import {
   Printer,
 } from 'lucide-react';
 import { triggerBlobDownload } from '../../services/archive';
+import { db } from '../../services/db';
 import {
   generateDocxBlob,
   generateDocHtml,
@@ -358,20 +359,42 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
   const handleDownloadDocx = useCallback(async () => {
     try {
       setIsExporting(true);
+
+      // 1. If currently viewing a real .docx binary, download directly
       if (docType === 'docx') {
         const blob = new Blob([buffer], {
           type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         });
         triggerBlobDownload(blob, `${baseFileName}.docx`);
-      } else {
-        const spec = normalizeDocumentSpec({
-          title: documentTitle || baseFileName,
-          content: docType === 'markdown-doc' ? content : undefined,
-          sections: docType === 'word-html' ? [{ html: sanitizedWordHtml }] : undefined,
-        });
-        const blob = await generateDocxBlob(spec);
-        triggerBlobDownload(blob, `${baseFileName}.docx`);
+        return;
       }
+
+      // 2. Check if a companion .docx file already exists in VFS
+      if (baseFileName) {
+        try {
+          const companionRecord = await db.files.get(`/workspace/${baseFileName}.docx`);
+          if (companionRecord?.content) {
+            const { buffer: compBuffer, bytes: compBytes } = decodeContentToArrayBuffer(companionRecord.content);
+            if (isDocxZipBytes(compBytes)) {
+              const blob = new Blob([compBuffer], {
+                type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              });
+              triggerBlobDownload(blob, `${baseFileName}.docx`);
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. Compile from current HTML / Markdown content into real OpenXML
+      const rawHtml = sanitizedWordHtml || (docType === 'word-html' ? content : '');
+      const spec = normalizeDocumentSpec({
+        title: documentTitle || baseFileName,
+        content: docType === 'markdown-doc' ? content : undefined,
+        sections: rawHtml ? [{ html: rawHtml }] : undefined,
+      });
+      const blob = await generateDocxBlob(spec);
+      triggerBlobDownload(blob, `${baseFileName}.docx`);
     } catch (err) {
       console.error('Failed to download Word .docx:', err);
     } finally {

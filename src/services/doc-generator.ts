@@ -119,6 +119,32 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
+export function isHtmlLike(text: string): boolean {
+  if (!text || text.length < 5) return false;
+  const lower = text.trim().toLowerCase();
+
+  if (
+    lower.startsWith('<!doctype html') ||
+    lower.startsWith('<html') ||
+    lower.includes('<body') ||
+    lower.includes('<head>') ||
+    lower.includes('urn:schemas-microsoft-com:office:word') ||
+    lower.includes('<w:worddocument') ||
+    lower.includes('mso-')
+  ) {
+    return true;
+  }
+
+  if (
+    (lower.includes('<p>') || lower.includes('<p ')) &&
+    (lower.includes('<h1>') || lower.includes('<h2>') || lower.includes('<div>') || lower.includes('<table>') || lower.includes('<br'))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Normalizes loose agent inputs into a structured DocumentSpec
  */
@@ -556,6 +582,243 @@ export function generateDocHtml(specInput: DocumentSpec): string {
 </body>
 </html>`;
 }
+/**
+ * Converts inline HTML elements (bold, italic, links, text) into OpenXML <w:r> runs
+ */
+function convertInlineHtmlToOpenXml(parent: Element | Node): string {
+  let runs = '';
+  for (const child of Array.from(parent.childNodes)) {
+    if (child.nodeType === 3) {
+      // Text node
+      const text = child.textContent || '';
+      if (text) {
+        runs += `<w:r><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
+      }
+    } else if (child.nodeType === 1) {
+      // Element node
+      const el = child as HTMLElement;
+      const tag = el.tagName.toLowerCase();
+
+      if (tag === 'br') {
+        runs += '<w:r><w:br/></w:r>';
+        continue;
+      }
+
+      const isBold = tag === 'strong' || tag === 'b' || el.style?.fontWeight === 'bold';
+      const isItalic = tag === 'em' || tag === 'i' || el.style?.fontStyle === 'italic';
+      const isCode = tag === 'code';
+      const color = el.style?.color ? el.style.color.replace('#', '') : '';
+
+      let rPr = '';
+      if (isBold) rPr += '<w:b/>';
+      if (isItalic) rPr += '<w:i/>';
+      if (isCode) rPr += '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="20"/>';
+      if (color && /^[0-9a-fA-F]{6}$/.test(color)) rPr += `<w:color w:val="${color}"/>`;
+
+      if (el.childNodes.length > 0) {
+        const innerRuns = convertInlineHtmlToOpenXml(el);
+        if (rPr) {
+          runs += innerRuns.replace(/<w:r>/g, `<w:r><w:rPr>${rPr}</w:rPr>`);
+        } else {
+          runs += innerRuns;
+        }
+      } else {
+        const text = el.textContent || '';
+        if (text) {
+          runs += `<w:r>${rPr ? `<w:rPr>${rPr}</w:rPr>` : ''}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
+        }
+      }
+    }
+  }
+  return runs;
+}
+
+/**
+ * Converts arbitrary HTML content into OpenXML WordprocessingML elements.
+ */
+export function htmlToOpenXml(html: string): string {
+  if (!html || !html.trim()) return '';
+
+  if (typeof DOMParser === 'undefined') {
+    return `<w:p><w:r><w:t>${escapeXml(html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())}</w:t></w:r></w:p>`;
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  let xml = '';
+
+  const processBlockNode = (node: Element) => {
+    const tag = node.tagName.toLowerCase();
+
+    // Skip entire head, script, style, or header meta elements
+    if (tag === 'head' || tag === 'script' || tag === 'style' || tag === 'meta' || tag === 'link') {
+      return;
+    }
+
+    // Skip header title block (already rendered in document title/metadata)
+    if (node.classList?.contains('doc-header-block') || node.classList?.contains('doc-meta-bar')) {
+      return;
+    }
+
+    // Headings
+    if (tag === 'h1' || (tag === 'div' && node.classList?.contains('doc-heading-1'))) {
+      const text = node.textContent?.trim() || '';
+      if (text) {
+        xml += `<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>${escapeXml(text)}</w:t></w:r></w:p>`;
+      }
+      return;
+    }
+
+    if (tag === 'h2' || (tag === 'div' && node.classList?.contains('doc-heading-2'))) {
+      const text = node.textContent?.trim() || '';
+      if (text) {
+        xml += `<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>${escapeXml(text)}</w:t></w:r></w:p>`;
+      }
+      return;
+    }
+
+    if (
+      tag === 'h3' ||
+      tag === 'h4' ||
+      tag === 'h5' ||
+      tag === 'h6' ||
+      (tag === 'div' && node.classList?.contains('doc-heading-3'))
+    ) {
+      const text = node.textContent?.trim() || '';
+      if (text) {
+        xml += `<w:p><w:pPr><w:pStyle w:val="Heading3"/></w:pPr><w:r><w:t>${escapeXml(text)}</w:t></w:r></w:p>`;
+      }
+      return;
+    }
+
+    // Paragraphs
+    if (tag === 'p') {
+      const runs = convertInlineHtmlToOpenXml(node);
+      if (runs.trim()) {
+        xml += `<w:p><w:pPr><w:spacing w:after="160"/></w:pPr>${runs}</w:p>`;
+      }
+      return;
+    }
+
+    // Lists
+    if (tag === 'ul' || tag === 'ol') {
+      const isOrdered = tag === 'ol';
+      let itemIdx = 1;
+      for (const li of Array.from(node.querySelectorAll(':scope > li'))) {
+        const bulletPrefix = isOrdered ? `${itemIdx++}.  ` : '•   ';
+        const runs = convertInlineHtmlToOpenXml(li);
+        xml += `<w:p><w:pPr><w:ind w:left="400" w:hanging="200"/><w:spacing w:after="100"/></w:pPr><w:r><w:t>${escapeXml(bulletPrefix)}</w:t></w:r>${runs}</w:p>`;
+      }
+      return;
+    }
+
+    // Callout / Blockquote
+    if (
+      tag === 'blockquote' ||
+      node.classList?.contains('doc-callout') ||
+      node.classList?.contains('doc-summary-card')
+    ) {
+      const titleEl = node.querySelector('.doc-callout-title, .doc-summary-title');
+      const titleText = titleEl?.textContent?.trim() || '';
+      const bodyEl = node.querySelector('.doc-callout-text, .doc-summary-text') || node;
+      const runs = convertInlineHtmlToOpenXml(bodyEl);
+
+      xml += `
+<w:tbl>
+  <w:tblPr>
+    <w:tblW w:w="9360" w:type="dxa"/>
+    <w:tblBorders>
+      <w:top w:val="none"/>
+      <w:left w:val="single" w:sz="24" w:space="0" w:color="2563EB"/>
+      <w:bottom w:val="none"/>
+      <w:right w:val="none"/>
+    </w:tblBorders>
+    <w:shd w:val="clear" w:color="auto" w:fill="EFF6FF"/>
+  </w:tblPr>
+  <w:tr>
+    <w:tc>
+      <w:tcPr>
+        <w:tcW w:w="9360" w:type="dxa"/>
+        <w:tcMar><w:top w:w="160"/><w:left w:w="240"/><w:bottom w:w="160"/><w:right w:w="240"/></w:tcMar>
+      </w:tcPr>
+      ${
+        titleText
+          ? `<w:p><w:pPr><w:spacing w:after="80"/></w:pPr><w:r><w:rPr><w:b/><w:color w:val="1E3A8A"/><w:sz w:val="22"/></w:rPr><w:t>${escapeXml(titleText)}</w:t></w:r></w:p>`
+          : ''
+      }
+      <w:p><w:pPr><w:spacing w:after="0"/></w:pPr>${runs}</w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl><w:p><w:pPr><w:spacing w:after="200"/></w:pPr></w:p>`;
+      return;
+    }
+
+    // Tables
+    if (tag === 'table') {
+      const rows = Array.from(node.querySelectorAll('tr'));
+      if (rows.length > 0) {
+        xml += `
+<w:tbl>
+  <w:tblPr>
+    <w:tblW w:w="9360" w:type="dxa"/>
+    <w:tblBorders>
+      <w:top w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>
+      <w:left w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>
+      <w:bottom w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>
+      <w:right w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>
+      <w:insideH w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>
+      <w:insideV w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>
+    </w:tblBorders>
+  </w:tblPr>`;
+
+        for (const row of rows) {
+          xml += '<w:tr>';
+          const cells = Array.from(row.querySelectorAll('th, td'));
+          for (const cell of cells) {
+            const isTh = cell.tagName.toLowerCase() === 'th';
+            const runs = convertInlineHtmlToOpenXml(cell);
+            xml += `
+  <w:tc>
+    <w:tcPr>
+      ${isTh ? '<w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/>' : ''}
+      <w:tcMar><w:top w:w="120"/><w:left w:w="140"/><w:bottom w:w="120"/><w:right w:w="140"/></w:tcMar>
+    </w:tcPr>
+    <w:p>${isTh ? '<w:pPr><w:rPr><w:b/><w:color w:val="1E3A8A"/></w:rPr></w:pPr>' : ''}${runs}</w:p>
+  </w:tc>`;
+          }
+          xml += '</w:tr>';
+        }
+        xml += '</w:tbl><w:p><w:pPr><w:spacing w:after="200"/></w:pPr></w:p>';
+      }
+      return;
+    }
+
+    // For generic container divs, body, sections: recurse on child elements
+    for (const child of Array.from(node.children)) {
+      processBlockNode(child);
+    }
+  };
+
+  const rootElement = doc.querySelector('div.Section1, .doc-body-sections, body') || doc.body;
+  if (rootElement) {
+    for (const child of Array.from(rootElement.children)) {
+      processBlockNode(child);
+    }
+  }
+
+  // Fallback: if no recognized block elements produced XML, extract text paragraphs
+  if (!xml.trim()) {
+    const rawText = doc.body?.innerText || doc.body?.textContent || '';
+    for (const p of rawText.split('\n\n')) {
+      if (p.trim()) {
+        xml += `<w:p><w:pPr><w:spacing w:after="160"/></w:pPr><w:r><w:t>${escapeXml(p.trim())}</w:t></w:r></w:p>`;
+      }
+    }
+  }
+
+  return xml;
+}
 
 /**
  * Builds a native OpenXML `.docx` file using JSZip.
@@ -756,6 +1019,12 @@ export async function generateDocxBlob(specInput: DocumentSpec): Promise<Blob> {
 
   // Sections
   for (const s of spec.sections || []) {
+    // 1. If section has raw HTML, convert to OpenXML elements using htmlToOpenXml!
+    if (s.html) {
+      docXmlBody += htmlToOpenXml(s.html);
+      continue;
+    }
+
     if (s.title) {
       const styleId = s.level === 1 ? 'Heading1' : s.level === 3 ? 'Heading3' : 'Heading2';
       docXmlBody += `
@@ -869,6 +1138,28 @@ export async function generateDocxBlob(specInput: DocumentSpec): Promise<Blob> {
     .join('')}
 </w:tbl>
 <w:p><w:pPr><w:spacing w:after="200"/></w:pPr></w:p>`;
+    }
+  }
+
+  // If sections were empty but spec.content was provided
+  if ((!spec.sections || spec.sections.length === 0) && spec.content) {
+    if (isHtmlLike(spec.content)) {
+      docXmlBody += htmlToOpenXml(spec.content);
+    } else {
+      for (const line of spec.content.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('# ')) {
+          docXmlBody += `<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>${escapeXml(trimmed.slice(2))}</w:t></w:r></w:p>`;
+        } else if (trimmed.startsWith('## ')) {
+          docXmlBody += `<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>${escapeXml(trimmed.slice(3))}</w:t></w:r></w:p>`;
+        } else if (trimmed.startsWith('### ')) {
+          docXmlBody += `<w:p><w:pPr><w:pStyle w:val="Heading3"/></w:pPr><w:r><w:t>${escapeXml(trimmed.slice(4))}</w:t></w:r></w:p>`;
+        } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+          docXmlBody += `<w:p><w:pPr><w:ind w:left="400" w:hanging="200"/><w:spacing w:after="100"/></w:pPr><w:r><w:t>•   ${escapeXml(trimmed.slice(2))}</w:t></w:r></w:p>`;
+        } else if (trimmed) {
+          docXmlBody += `<w:p><w:pPr><w:spacing w:after="160"/></w:pPr><w:r><w:t>${escapeXml(trimmed)}</w:t></w:r></w:p>`;
+        }
+      }
     }
   }
 
