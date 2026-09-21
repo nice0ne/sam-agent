@@ -34,6 +34,7 @@ const PROVIDERS: ProviderMeta[] = [
       { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', vision: true },
       { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', vision: true },
       { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', vision: true },
+      { id: 'custom-model', name: 'Custom Model ID...' },
     ],
   },
   {
@@ -46,6 +47,7 @@ const PROVIDERS: ProviderMeta[] = [
       { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', vision: true },
       { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', vision: true },
       { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', vision: true },
+      { id: 'custom-model', name: 'Custom Model ID...' },
     ],
   },
   {
@@ -58,6 +60,7 @@ const PROVIDERS: ProviderMeta[] = [
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini', vision: true },
       { id: 'o3-mini', name: 'o3-mini', reasoning: true },
       { id: 'o1', name: 'o1', reasoning: true, vision: true },
+      { id: 'custom-model', name: 'Custom Model ID...' },
     ],
   },
   {
@@ -68,6 +71,7 @@ const PROVIDERS: ProviderMeta[] = [
     models: [
       { id: 'deepseek-chat', name: 'DeepSeek V3 (Chat)' },
       { id: 'deepseek-reasoner', name: 'DeepSeek R1 (Reasoner)', reasoning: true },
+      { id: 'custom-model', name: 'Custom Model ID...' },
     ],
   },
   {
@@ -82,6 +86,7 @@ const PROVIDERS: ProviderMeta[] = [
       { id: 'glm-4-air', name: 'GLM-4 Air' },
       { id: 'glm-4-flash', name: 'GLM-4 Flash' },
       { id: 'codegeex-4', name: 'CodeGeeX-4 (Coding)' },
+      { id: 'custom-model', name: 'Custom Model ID...' },
     ],
   },
   {
@@ -118,6 +123,33 @@ export const SettingsView: React.FC = () => {
   const [showKey, setShowKey] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [baseUrl, setBaseUrl] = useState('');
+  const [providerDrafts, setProviderDrafts] = useState<
+    Record<
+      string,
+      {
+        apiKey?: string;
+        baseUrl?: string;
+        selectedModelId?: string;
+        customModelInput?: string;
+      }
+    >
+  >({});
+
+  // Ensure active provider state is accurately synchronized on mount and store updates
+  useEffect(() => {
+    chrome.storage.local.get([STORAGE_KEYS.provider], (res) => {
+      const savedProvider = res[STORAGE_KEYS.provider];
+      if (savedProvider && savedProvider !== 'proxy') {
+        setSelectedProviderId(savedProvider);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (provider && provider !== 'proxy') {
+      setSelectedProviderId(provider);
+    }
+  }, [provider]);
 
   // Domain Memory state
   const [memories, setMemories] = useState<DomainMemoryRecord[]>([]);
@@ -199,43 +231,131 @@ export const SettingsView: React.FC = () => {
 
   const currentProvider = PROVIDERS.find((p) => p.id === selectedProviderId) || PROVIDERS[0];
 
-  // Load provider settings from chrome.storage.local
+  // Load provider settings from chrome.storage.local or in-session drafts
   useEffect(() => {
+    let isMounted = true;
+
     const loadProviderData = async () => {
       setTestStatus('idle');
       setTestMessage('');
+
+      // 1. Check in-session draft first
+      const draft = providerDrafts[currentProvider.id];
+      if (draft) {
+        if (!isMounted) return;
+        setApiKey(draft.apiKey ?? '');
+        setBaseUrl(draft.baseUrl ?? currentProvider.defaultBaseUrl);
+        setSelectedModelId(draft.selectedModelId ?? currentProvider.models[0].id);
+        setCustomModelInput(draft.customModelInput ?? '');
+        return;
+      }
+
+      // 2. Load from storage
       const storageKey = currentProvider.keyStorageName;
       const data = await chrome.storage.local.get([
         storageKey,
         `${currentProvider.id}_model`,
         `${currentProvider.id}_baseUrl`,
+        `${currentProvider.id}_customModel`,
+        `${currentProvider.id}_apiKey`,
+        'customBaseUrl',
+        'custom_baseUrl',
+        STORAGE_KEYS.hostedModel,
       ]);
-      setApiKey(data[storageKey] || '');
-      setBaseUrl(data[`${currentProvider.id}_baseUrl`] || currentProvider.defaultBaseUrl);
-      if (data[`${currentProvider.id}_model`]) {
-        const m = data[`${currentProvider.id}_model`];
-        setSelectedModelId(m);
-        if (currentProvider.id === 'custom_openai' && !currentProvider.models.some((item) => item.id === m)) {
-          setCustomModelInput(m);
-        }
+
+      if (!isMounted) return;
+
+      // API Key
+      const savedKey = data[storageKey] || data[`${currentProvider.id}_apiKey`] || '';
+      setApiKey(savedKey);
+
+      // Base URL
+      let savedBaseUrl = data[`${currentProvider.id}_baseUrl`];
+      if (!savedBaseUrl && currentProvider.id === 'custom_openai') {
+        savedBaseUrl = data['customBaseUrl'] || data['custom_baseUrl'];
+      }
+      setBaseUrl(savedBaseUrl || currentProvider.defaultBaseUrl);
+
+      // Model Resolution
+      let savedModel = data[`${currentProvider.id}_model`];
+      if (!savedModel && currentProvider.id === provider && (data[STORAGE_KEYS.hostedModel] || hostedModel)) {
+        savedModel = data[STORAGE_KEYS.hostedModel] || hostedModel;
+      }
+
+      const isKnownPreset =
+        savedModel &&
+        currentProvider.models.some((item) => item.id === savedModel && item.id !== 'custom-model');
+
+      if (isKnownPreset) {
+        setSelectedModelId(savedModel);
+        setCustomModelInput(data[`${currentProvider.id}_customModel`] || '');
+      } else if (savedModel) {
+        // Saved model is a custom model ID (or explicit 'custom-model')
+        setSelectedModelId('custom-model');
+        const customName =
+          savedModel === 'custom-model'
+            ? data[`${currentProvider.id}_customModel`] || ''
+            : savedModel;
+        setCustomModelInput(customName);
       } else {
         setSelectedModelId(currentProvider.models[0].id);
+        setCustomModelInput(data[`${currentProvider.id}_customModel`] || '');
       }
     };
-    loadProviderData();
-  }, [currentProvider]);
 
-  const activeModelId = selectedModelId === 'custom-model' ? (customModelInput || 'default') : selectedModelId;
+    loadProviderData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentProvider, providerDrafts, provider, hostedModel]);
+
+  const activeModelId =
+    selectedModelId === 'custom-model'
+      ? customModelInput.trim() || currentProvider.models[0].id
+      : selectedModelId;
+
+  const handleSelectProvider = (newId: string) => {
+    if (newId === selectedProviderId) return;
+    setProviderDrafts((prev) => ({
+      ...prev,
+      [selectedProviderId]: {
+        apiKey,
+        baseUrl,
+        selectedModelId,
+        customModelInput,
+      },
+    }));
+    setSelectedProviderId(newId);
+  };
 
   const handleSave = async () => {
     await setProvider(selectedProviderId);
-    await chrome.storage.local.set({
+    const updates: Record<string, any> = {
       [STORAGE_KEYS.provider]: selectedProviderId,
       [STORAGE_KEYS.hostedModel]: activeModelId,
-      [currentProvider.keyStorageName]: apiKey,
+      [currentProvider.keyStorageName]: apiKey.trim(),
+      [`${currentProvider.id}_apiKey`]: apiKey.trim(),
       [`${currentProvider.id}_model`]: activeModelId,
-      [`${currentProvider.id}_baseUrl`]: baseUrl,
-    });
+      [`${currentProvider.id}_baseUrl`]: baseUrl.trim(),
+      [`${currentProvider.id}_customModel`]: customModelInput.trim(),
+    };
+    if (selectedProviderId === 'custom_openai') {
+      updates['customBaseUrl'] = baseUrl.trim();
+      updates['custom_baseUrl'] = baseUrl.trim();
+    }
+    await chrome.storage.local.set(updates);
+
+    setProviderDrafts((prev) => ({
+      ...prev,
+      [selectedProviderId]: {
+        apiKey: apiKey.trim(),
+        baseUrl: baseUrl.trim(),
+        selectedModelId,
+        customModelInput: customModelInput.trim(),
+      },
+    }));
+
     await Promise.all([
       saveAgentSoul(soulContent),
       saveOptimizationSettings({ enableRtk, enablePonytail }),
@@ -445,7 +565,7 @@ export const SettingsView: React.FC = () => {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setSelectedProviderId(p.id)}
+                  onClick={() => handleSelectProvider(p.id)}
                   className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
                     isSelected
                       ? 'border-primary bg-primary/15 text-primary shadow-xs ring-1 ring-primary/30'

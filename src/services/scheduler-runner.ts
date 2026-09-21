@@ -25,10 +25,15 @@ export async function executeScheduledTask(
           'deepseekApiKey',
           'glmApiKey',
           'customApiKey',
+          'custom_openai_apiKey',
           'anthropic_baseUrl',
           'openai_baseUrl',
           'gemini_baseUrl',
+          'custom_openai_baseUrl',
+          'customBaseUrl',
+          'custom_baseUrl',
           'openaiModel',
+          'custom_openai_model',
         ])
       : {};
 
@@ -48,6 +53,8 @@ export async function executeScheduledTask(
         ? storageData.anthropicApiKey
         : provider === 'gemini'
         ? storageData.geminiApiKey
+        : provider === 'custom_openai'
+        ? storageData.customApiKey || storageData.custom_openai_apiKey || 'ollama'
         : storageData.openaiApiKey || storageData.customApiKey;
 
     let responseText = '';
@@ -77,8 +84,14 @@ export async function executeScheduledTask(
 
       const data = await res.json();
       responseText = data.content?.[0]?.text || 'Task completed with no output.';
-    } else if (provider === 'openai' && apiKey) {
-      const baseUrl = (storageData.openai_baseUrl || 'https://api.openai.com').replace(/\/+$/, '');
+    } else if ((provider === 'openai' || provider === 'custom_openai') && apiKey) {
+      const baseUrl = (
+        (provider === 'custom_openai'
+          ? storageData.custom_openai_baseUrl || storageData.customBaseUrl || storageData.custom_baseUrl
+          : storageData.openai_baseUrl) ||
+        (provider === 'custom_openai' ? 'http://localhost:11434/v1' : 'https://api.openai.com')
+      ).replace(/\/+$/, '');
+
       let endpoint = baseUrl;
       if (!endpoint.endsWith('/chat/completions')) {
         if (endpoint.endsWith('/v1')) {
@@ -88,6 +101,11 @@ export async function executeScheduledTask(
         }
       }
 
+      const selectedModel =
+        provider === 'custom_openai'
+          ? storageData.custom_openai_model || storageData.hostedModel || 'llama3.3'
+          : storageData.openaiModel || 'gpt-4o';
+
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -95,7 +113,7 @@ export async function executeScheduledTask(
           'Authorization': `Bearer ${apiKey.trim()}`,
         },
         body: JSON.stringify({
-          model: storageData.openaiModel || 'gpt-4o',
+          model: selectedModel,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: task.prompt },

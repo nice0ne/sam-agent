@@ -439,7 +439,7 @@ async function streamFromProvider(
       apiKey = storageData.glmApiKey || '';
       defaultBaseUrl = 'https://open.bigmodel.cn/api/paas/v4';
     } else if (provider === 'custom_openai') {
-      apiKey = storageData.customApiKey || '';
+      apiKey = storageData.customApiKey || storageData.custom_openai_apiKey || '';
       defaultBaseUrl = 'http://localhost:11434/v1';
     }
 
@@ -447,7 +447,8 @@ async function streamFromProvider(
       throw new Error(`${provider.toUpperCase()} API Key is missing. Please add it in Settings.`);
     }
 
-    const baseUrl = (storageData[`${provider}_baseUrl`] || defaultBaseUrl).replace(/\/+$/, '');
+    const customUrl = provider === 'custom_openai' ? (storageData.customBaseUrl || storageData.custom_baseUrl) : undefined;
+    const baseUrl = (storageData[`${provider}_baseUrl`] || customUrl || defaultBaseUrl).replace(/\/+$/, '');
     const endpoint = baseUrl.endsWith('/chat/completions')
       ? baseUrl
       : `${baseUrl}/chat/completions`;
@@ -817,6 +818,9 @@ export async function runChatStream(options: ChatRunOptions): Promise<void> {
     'deepseekApiKey',
     'glmApiKey',
     'customApiKey',
+    'custom_openai_apiKey',
+    'customBaseUrl',
+    'custom_baseUrl',
     `${provider}_baseUrl`,
   ]);
 
