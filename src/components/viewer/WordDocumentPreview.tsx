@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { renderAsync } from 'docx-preview';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   FileText,
   ZoomIn,
@@ -17,13 +19,18 @@ import {
   Printer,
 } from 'lucide-react';
 import { triggerBlobDownload } from '../../services/archive';
+import {
+  generateDocxBlob,
+  generateDocHtml,
+  normalizeDocumentSpec,
+} from '../../services/doc-generator';
 
 export interface WordDocumentPreviewProps {
   content: string;
   filePath?: string;
 }
 
-export type WordDocType = 'docx' | 'word-html' | 'binary-doc';
+export type WordDocType = 'docx' | 'word-html' | 'markdown-doc' | 'binary-doc';
 
 /**
  * Format raw byte size into human-readable representation.
@@ -37,29 +44,28 @@ function formatBytes(bytes: number): string {
 }
 
 /**
- * Tests whether a given text snippet has Word HTML / MSO markup signatures.
+ * Tests whether a given text snippet has HTML markup.
  */
-function isWordHtmlSnippet(text: string): boolean {
-  if (!text || text.length < 10) return false;
-  const lower = text.toLowerCase();
+function isHtmlLike(text: string): boolean {
+  if (!text || text.length < 5) return false;
+  const lower = text.trim().toLowerCase();
 
-  // Microsoft Office / Word specific XML namespaces and tags
   if (
+    lower.startsWith('<!doctype html') ||
+    lower.startsWith('<html') ||
+    lower.includes('<body') ||
+    lower.includes('<head>') ||
     lower.includes('urn:schemas-microsoft-com:office:word') ||
-    lower.includes('urn:schemas-microsoft-com:office:office') ||
     lower.includes('<w:worddocument') ||
-    lower.includes('xmlns:w=') ||
-    lower.includes('xmlns:o=') ||
-    lower.includes('mso-') ||
-    lower.includes('<!--[if gte mso')
+    lower.includes('mso-')
   ) {
     return true;
   }
 
-  // HTML documents saved with Word extensions (.doc / .docx)
+  // Common tags in HTML bodies
   if (
-    (lower.startsWith('<!doctype html') || lower.startsWith('<html') || lower.includes('<head>') || lower.includes('<body>')) &&
-    (lower.includes('size: a4') || lower.includes('margin:') || lower.includes('font-family:') || lower.includes('<table'))
+    (lower.includes('<p>') || lower.includes('<p ')) &&
+    (lower.includes('<h1>') || lower.includes('<h2>') || lower.includes('<div>') || lower.includes('<table>') || lower.includes('<br'))
   ) {
     return true;
   }
@@ -74,7 +80,7 @@ function extractWordHtml(content: string, bytes: Uint8Array): string | null {
   // 1. Direct check on content string
   if (content && typeof content === 'string') {
     const trimmed = content.trim();
-    if (isWordHtmlSnippet(trimmed)) {
+    if (isHtmlLike(trimmed)) {
       return trimmed;
     }
   }
@@ -84,7 +90,7 @@ function extractWordHtml(content: string, bytes: Uint8Array): string | null {
     try {
       const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
       const trimmed = decoded.trim();
-      if (isWordHtmlSnippet(trimmed)) {
+      if (isHtmlLike(trimmed)) {
         return trimmed;
       }
     } catch {
@@ -169,42 +175,34 @@ function isOleBinaryBytes(bytes: Uint8Array): boolean {
 
 /**
  * Resolves the specific Word document subtype:
- * - 'word-html': HTML document with MSO/Word headers or styling (.doc)
  * - 'docx': OpenXML ZIP document (.docx)
+ * - 'word-html': HTML document with Word/MSO styling (.doc / .html)
+ * - 'markdown-doc': Formatted markdown or plain text (renders as styled document page)
  * - 'binary-doc': Legacy binary OLE Compound document (.doc)
  */
 function resolveWordDocType(
   filePath: string | undefined,
   bytes: Uint8Array,
-  wordHtml: string | null
+  wordHtml: string | null,
+  rawContent: string
 ): WordDocType {
-  // 1. If Word HTML markup was identified, it takes highest precedence for HTML .doc files
-  if (wordHtml !== null) {
-    return 'word-html';
-  }
-
-  // 2. OpenXML ZIP magic signature (PK\x03\x04)
+  // 1. OpenXML ZIP magic signature (PK\x03\x04)
   if (isDocxZipBytes(bytes)) {
     return 'docx';
   }
 
-  // 3. Legacy OLE Compound Binary signature (D0 CF 11 E0)
+  // 2. Legacy OLE Compound Binary signature (D0 CF 11 E0)
   if (isOleBinaryBytes(bytes)) {
     return 'binary-doc';
   }
 
-  // 4. File extension fallback
-  if (filePath) {
-    const lower = filePath.toLowerCase();
-    if (lower.endsWith('.docx')) {
-      return 'docx';
-    }
-    if (lower.endsWith('.doc')) {
-      return 'binary-doc';
-    }
+  // 3. HTML markup identified
+  if (wordHtml !== null || isHtmlLike(rawContent)) {
+    return 'word-html';
   }
 
-  return 'docx';
+  // 4. If neither zip nor binary nor html, it's markdown or plain text
+  return 'markdown-doc';
 }
 
 /**
@@ -286,6 +284,7 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
   const [copiedText, setCopiedText] = useState<boolean>(false);
   const [viewTab, setViewTab] = useState<'document' | 'source'>('document');
   const [iframeHeight, setIframeHeight] = useState<number>(1100);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
   // Decode binary data & detect format
   const { buffer, bytes } = useMemo(() => decodeContentToArrayBuffer(content), [content]);
@@ -295,8 +294,8 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
 
   // Determine document subtype
   const docType = useMemo(
-    () => resolveWordDocType(filePath, bytes, wordHtml),
-    [filePath, bytes, wordHtml]
+    () => resolveWordDocType(filePath, bytes, wordHtml, content),
+    [filePath, bytes, wordHtml, content]
   );
 
   // Extract readable text fragments if legacy binary DOC
@@ -307,10 +306,21 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
 
   // Clean HTML for iframe preview (strip <script> tags for safe rendering)
   const sanitizedWordHtml = useMemo(() => {
-    if (!wordHtml) return '';
+    if (!wordHtml && docType !== 'word-html') return '';
+    const rawHtml = wordHtml || content;
     // Strip scripts to adhere strictly to MV3 safety
-    return wordHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  }, [wordHtml]);
+    const clean = rawHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+
+    // If it doesn't already have HTML document tags, wrap into MSO Word HTML
+    if (!clean.toLowerCase().includes('<html')) {
+      return generateDocHtml({
+        title: filePath?.split('/').pop()?.replace(/\.[^.]+$/, '') || 'Dokumen',
+        sections: [{ html: clean }],
+      });
+    }
+
+    return clean;
+  }, [wordHtml, docType, content, filePath]);
 
   // Derived file name
   const fileName = useMemo(() => {
@@ -321,10 +331,13 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
     }
     if (docType === 'word-html') return 'document.doc';
     if (docType === 'binary-doc') return 'document.doc';
+    if (docType === 'markdown-doc') return 'document.doc';
     return 'document.docx';
   }, [filePath, docType]);
 
-  // Derived title from HTML title tag if available
+  const baseFileName = useMemo(() => fileName.replace(/\.[^.]+$/, ''), [fileName]);
+
+  // Derived title from HTML title tag or Markdown header
   const documentTitle = useMemo(() => {
     if (wordHtml) {
       const titleMatch = wordHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
@@ -332,30 +345,68 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
         return titleMatch[1].trim();
       }
     }
+    if (docType === 'markdown-doc') {
+      const firstHeading = content.match(/^#\s+([^\n\r]+)/m);
+      if (firstHeading && firstHeading[1]) {
+        return firstHeading[1].trim();
+      }
+    }
     return null;
-  }, [wordHtml]);
+  }, [wordHtml, docType, content]);
 
-  // Handle file download
-  const handleDownload = useCallback(() => {
+  // Handle export to native .docx (OpenXML)
+  const handleDownloadDocx = useCallback(async () => {
     try {
-      let mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      let blob: Blob;
-
-      if (docType === 'word-html') {
-        mimeType = 'application/msword;charset=utf-8';
-        blob = new Blob([wordHtml || content], { type: mimeType });
-      } else if (docType === 'binary-doc') {
-        mimeType = 'application/msword';
-        blob = new Blob([buffer], { type: mimeType });
+      setIsExporting(true);
+      if (docType === 'docx') {
+        const blob = new Blob([buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+        triggerBlobDownload(blob, `${baseFileName}.docx`);
       } else {
-        blob = new Blob([buffer], { type: mimeType });
+        const spec = normalizeDocumentSpec({
+          title: documentTitle || baseFileName,
+          content: docType === 'markdown-doc' ? content : undefined,
+          sections: docType === 'word-html' ? [{ html: sanitizedWordHtml }] : undefined,
+        });
+        const blob = await generateDocxBlob(spec);
+        triggerBlobDownload(blob, `${baseFileName}.docx`);
+      }
+    } catch (err) {
+      console.error('Failed to download Word .docx:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [docType, buffer, baseFileName, documentTitle, content, sanitizedWordHtml]);
+
+  // Handle export to Word .doc (MSO Word HTML format)
+  const handleDownloadDoc = useCallback(() => {
+    try {
+      let htmlToSave = '';
+      if (docType === 'word-html') {
+        htmlToSave = sanitizedWordHtml || content;
+      } else if (docType === 'markdown-doc') {
+        htmlToSave = generateDocHtml({
+          title: documentTitle || baseFileName,
+          content,
+        });
+      } else if (docType === 'binary-doc') {
+        const blob = new Blob([buffer], { type: 'application/msword' });
+        triggerBlobDownload(blob, `${baseFileName}.doc`);
+        return;
+      } else {
+        htmlToSave = generateDocHtml({
+          title: documentTitle || baseFileName,
+          content: 'Dokumen diekspor dari SAM-Agent.',
+        });
       }
 
-      triggerBlobDownload(blob, fileName);
+      const blob = new Blob([htmlToSave], { type: 'application/msword;charset=utf-8' });
+      triggerBlobDownload(blob, `${baseFileName}.doc`);
     } catch (err) {
-      console.error('Failed to download Word document:', err);
+      console.error('Failed to download Word .doc:', err);
     }
-  }, [docType, wordHtml, content, buffer, fileName]);
+  }, [docType, sanitizedWordHtml, content, documentTitle, baseFileName, buffer]);
 
   // Zoom controls
   const handleZoomIn = () => {
@@ -384,16 +435,20 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
     setRenderKey((k) => k + 1);
   };
 
-  const handleCopyExtractedText = () => {
-    if (extractedLines.length === 0) return;
-    navigator.clipboard.writeText(extractedLines.join('\n\n'));
-    setCopiedText(true);
-    setTimeout(() => setCopiedText(false), 2000);
-  };
+  const handleCopyText = () => {
+    let textToCopy = '';
+    if (docType === 'markdown-doc') {
+      textToCopy = content;
+    } else if (docType === 'binary-doc') {
+      textToCopy = extractedLines.join('\n\n');
+    } else if (iframeRef.current?.contentDocument) {
+      textToCopy = iframeRef.current.contentDocument.body?.innerText || '';
+    } else {
+      textToCopy = content;
+    }
 
-  const handleCopyHtmlSource = () => {
-    if (!wordHtml) return;
-    navigator.clipboard.writeText(wordHtml);
+    if (!textToCopy) return;
+    navigator.clipboard.writeText(textToCopy);
     setCopiedText(true);
     setTimeout(() => setCopiedText(false), 2000);
   };
@@ -487,73 +542,76 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground truncate max-w-[260px] sm:max-w-[360px]" title={documentTitle || fileName}>
+              <span
+                className="font-semibold text-foreground truncate max-w-[220px] sm:max-w-[340px]"
+                title={documentTitle || fileName}
+              >
                 {documentTitle || fileName}
               </span>
               <span
                 className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase shrink-0 ${
                   docType === 'word-html'
                     ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                    : docType === 'markdown-doc'
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                     : docType === 'binary-doc'
                     ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                    : 'bg-muted text-muted-foreground'
+                    : 'bg-primary/15 text-primary'
                 }`}
               >
                 {docType === 'word-html'
-                  ? 'Word HTML (.doc)'
+                  ? 'Word MSO (.doc)'
+                  : docType === 'markdown-doc'
+                  ? 'Word Document'
                   : docType === 'binary-doc'
-                  ? 'Word 97-2003 (.doc)'
+                  ? 'Word 97-2003'
                   : 'DOCX'}
               </span>
             </div>
             <div className="text-[11px] text-muted-foreground flex items-center gap-2">
               <span>{formatBytes(bytes.length || content.length)}</span>
-              {documentTitle && (
-                <>
-                  <span>•</span>
-                  <span className="truncate max-w-[180px] font-mono text-[10px]">{fileName}</span>
-                </>
-              )}
+              <span>•</span>
+              <span className="truncate max-w-[180px] font-mono text-[10px]">{fileName}</span>
             </div>
           </div>
         </div>
 
         {/* Right: Controls & Download */}
         <div className="flex items-center gap-1.5 ml-auto">
-          {/* Word HTML View Mode Switcher (Document vs Source) */}
-          {docType === 'word-html' && (
+          {/* View Mode Switcher (Document Preview vs Source) */}
+          {(docType === 'word-html' || docType === 'markdown-doc') && (
             <div className="flex items-center bg-muted/60 rounded-lg p-0.5 border border-border/50 mr-1">
               <button
                 type="button"
                 onClick={() => setViewTab('document')}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
                   viewTab === 'document'
                     ? 'bg-background text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
-                title="Document View"
+                title="Visual Document Preview"
               >
-                <Eye className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Document</span>
+                <Eye className="w-3.5 h-3.5 text-primary" />
+                <span>Preview</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewTab('source')}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
                   viewTab === 'source'
                     ? 'bg-background text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
-                title="HTML Source"
+                title="Source Code View"
               >
                 <Code className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">HTML</span>
+                <span>Source</span>
               </button>
             </div>
           )}
 
           {/* Zoom Controls for Visual Views */}
-          {((docType === 'docx' && !renderError) || (docType === 'word-html' && viewTab === 'document')) && (
+          {viewTab === 'document' && docType !== 'binary-doc' && (
             <div className="flex items-center bg-muted/60 rounded-lg p-0.5 border border-border/50">
               <button
                 type="button"
@@ -592,8 +650,8 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
             </div>
           )}
 
-          {/* Print Button for Word HTML */}
-          {docType === 'word-html' && viewTab === 'document' && (
+          {/* Print Button */}
+          {viewTab === 'document' && docType !== 'binary-doc' && (
             <button
               type="button"
               onClick={handlePrint}
@@ -604,7 +662,21 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
             </button>
           )}
 
-          {/* Refresh Document */}
+          {/* Copy Text Button */}
+          <button
+            type="button"
+            onClick={handleCopyText}
+            className="p-1.5 rounded-lg border border-border/50 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+            title="Copy Text Content"
+          >
+            {copiedText ? (
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
+          </button>
+
+          {/* Reload Button for DOCX */}
           {docType === 'docx' && !renderError && (
             <button
               type="button"
@@ -618,15 +690,31 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
 
           <div className="w-[1px] h-4 bg-border mx-1" />
 
-          {/* Download Button */}
+          {/* Export to Word .doc (MSO Word HTML) */}
           <button
             type="button"
-            onClick={handleDownload}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium cursor-pointer transition-colors shadow-xs"
-            title="Download Word File"
+            onClick={handleDownloadDoc}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-xs font-medium cursor-pointer transition-colors"
+            title="Download Word Document (.doc format)"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>Download Word File</span>
+            <Download className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>.doc</span>
+          </button>
+
+          {/* Primary Export: Download Word .docx */}
+          <button
+            type="button"
+            onClick={handleDownloadDocx}
+            disabled={isExporting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium cursor-pointer transition-colors shadow-xs disabled:opacity-50"
+            title="Export to Microsoft Word (.docx format)"
+          >
+            {isExporting ? (
+              <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5" />
+            )}
+            <span>Export DOCX</span>
           </button>
         </div>
       </div>
@@ -675,7 +763,7 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={handleDownload}
+                    onClick={handleDownloadDocx}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium cursor-pointer transition-colors"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -687,7 +775,7 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
           </div>
         )}
 
-        {/* 1. Word HTML (.doc) Visual Document Preview */}
+        {/* 1. Word HTML Visual Document Preview */}
         {docType === 'word-html' && viewTab === 'document' && (
           <div
             style={{
@@ -713,24 +801,65 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
                   display: 'block',
                   backgroundColor: '#ffffff',
                 }}
-                title="Word HTML Document Preview"
+                title="Word Document Preview"
               />
             </div>
           </div>
         )}
 
-        {/* 2. Word HTML (.doc) Raw Source Code View */}
-        {docType === 'word-html' && viewTab === 'source' && (
+        {/* 2. Markdown / Plain Text Styled Document Preview */}
+        {docType === 'markdown-doc' && viewTab === 'document' && (
+          <div
+            style={{
+              transform: `scale(${zoom / 100})`,
+              transformOrigin: 'top center',
+              transition: 'transform 0.15s ease-out',
+              width: '100%',
+              maxWidth: '850px',
+            }}
+            className="transition-transform"
+          >
+            <div className="shadow-lg bg-white text-slate-900 rounded-sm border border-border/50 p-10 sm:p-14 min-h-[1050px] box-border">
+              {/* Document Header Bar */}
+              <div className="border-b-2 border-blue-900 pb-4 mb-6">
+                <h1 className="text-2xl sm:text-3xl font-bold text-blue-900 leading-tight mb-2">
+                  {documentTitle || baseFileName}
+                </h1>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 font-medium">
+                  <span>Dokumen Word • Disusun oleh SAM-Agent</span>
+                  <span>•</span>
+                  <span>{new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                </div>
+              </div>
+
+              {/* Rendered Markdown Body */}
+              <div className="space-y-4 text-xs sm:text-sm text-slate-800 leading-relaxed [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-blue-950 [&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:border-b [&_h1]:border-slate-200 [&_h1]:pb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-blue-900 [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-blue-800 [&_h3]:mt-4 [&_h3]:mb-1 [&_p]:leading-relaxed [&_p]:text-justify [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:space-y-1 [&_blockquote]:border-l-4 [&_blockquote]:border-blue-500 [&_blockquote]:bg-blue-50/60 [&_blockquote]:p-3 [&_blockquote]:rounded-r [&_blockquote]:italic [&_table]:w-full [&_table]:border-collapse [&_table]:my-4 [&_th]:bg-slate-100 [&_th]:text-blue-900 [&_th]:font-semibold [&_th]:p-2.5 [&_th]:text-left [&_th]:border [&_th]:border-slate-300 [&_td]:border [&_td]:border-slate-300 [&_td]:p-2.5 [&_tr:nth-child(even)_td]:bg-slate-50">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {content}
+                </ReactMarkdown>
+              </div>
+
+              {/* Document Footer */}
+              <div className="border-t border-slate-200 mt-12 pt-4 flex justify-between items-center text-[10px] text-slate-400">
+                <span>Disusun otomatis oleh SAM-Agent</span>
+                <span>Halaman 1</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3. Raw Source Code View (HTML or Markdown) */}
+        {(docType === 'word-html' || docType === 'markdown-doc') && viewTab === 'source' && (
           <div className="w-full max-w-4xl mx-auto bg-card border border-border/80 rounded-xl shadow-sm overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/40 text-xs">
               <div className="flex items-center gap-2">
                 <Code className="w-4 h-4 text-blue-500" />
-                <span className="font-semibold text-foreground">Word HTML Source</span>
-                <span className="text-[11px] text-muted-foreground">({sanitizedWordHtml.length} characters)</span>
+                <span className="font-semibold text-foreground">Document Source</span>
+                <span className="text-[11px] text-muted-foreground">({content.length} characters)</span>
               </div>
               <button
                 type="button"
-                onClick={handleCopyHtmlSource}
+                onClick={handleCopyText}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground text-[11px] font-medium cursor-pointer transition-colors"
               >
                 {copiedText ? (
@@ -741,18 +870,18 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    <span>Copy HTML</span>
+                    <span>Copy Source</span>
                   </>
                 )}
               </button>
             </div>
             <pre className="p-4 font-mono text-xs text-foreground bg-muted/20 overflow-auto max-h-[680px] leading-relaxed whitespace-pre-wrap select-text">
-              {sanitizedWordHtml}
+              {content}
             </pre>
           </div>
         )}
 
-        {/* 3. Modern DOCX Container */}
+        {/* 4. Modern DOCX Container */}
         {docType === 'docx' && !renderError && (
           <div
             style={{
@@ -771,7 +900,7 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
           </div>
         )}
 
-        {/* 4. Legacy Word 97-2003 View */}
+        {/* 5. Legacy Word 97-2003 View */}
         {docType === 'binary-doc' && !isLoading && (
           <div className="w-full max-w-3xl mx-auto space-y-6">
             {/* Informative Card */}
@@ -790,16 +919,26 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground leading-relaxed mb-4">
-                    This file is stored in Microsoft Word 97-2003 binary format (.doc). In-browser interactive rendering is optimized for modern Office Open XML documents (.docx) and Word HTML documents. You can inspect the extracted text fragments below or download the file to view its full layout in Microsoft Word, LibreOffice, or Google Docs.
+                    Dokumen ini disimpan dalam format biner Microsoft Word 97-2003 (.doc). Anda dapat melihat teks yang diekstraksi di bawah ini atau mengunduh file untuk membukanya di Microsoft Word.
                   </p>
-                  <button
-                    type="button"
-                    onClick={handleDownload}
-                    className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium cursor-pointer transition-colors shadow-xs"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Download Word File</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownloadDoc}
+                      className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium cursor-pointer transition-colors shadow-xs"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download File Word (.doc)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadDocx}
+                      className="flex items-center gap-2 px-3.5 py-2 rounded-lg border border-border bg-card hover:bg-muted text-xs font-medium cursor-pointer transition-colors"
+                    >
+                      <Download className="w-4 h-4 text-muted-foreground" />
+                      <span>Export to DOCX</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -817,7 +956,7 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
                 {extractedLines.length > 0 && (
                   <button
                     type="button"
-                    onClick={handleCopyExtractedText}
+                    onClick={handleCopyText}
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground text-[11px] font-medium cursor-pointer transition-colors"
                   >
                     {copiedText ? (
@@ -844,9 +983,9 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
                   ))
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
-                    <p className="text-xs">No readable plain text fragments could be extracted from this binary file.</p>
+                    <p className="text-xs">Tidak ada fragmen teks yang dapat diekstrak dari file biner ini.</p>
                     <p className="text-[11px] mt-1 text-muted-foreground/70">
-                      Please use the download button above to open the file in Microsoft Word.
+                      Gunakan tombol unduh di atas untuk membuka file di Microsoft Word.
                     </p>
                   </div>
                 )}

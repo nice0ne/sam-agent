@@ -87,8 +87,8 @@ export function resolveViewerType(
   if (
     p.endsWith('.docx') ||
     p.endsWith('.doc') ||
-    m === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    m === 'application/msword'
+    m.includes('wordprocessingml.document') ||
+    m.includes('msword')
   ) {
     return 'docx';
   }

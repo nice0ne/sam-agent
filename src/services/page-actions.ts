@@ -15,6 +15,7 @@
 import { saveVfsFile } from './vfs';
 import { switchToTab, closeBrowserTab, isRestrictedTabUrl } from './tab-manager';
 import { executeUserTool } from './tool-registry';
+import { createDocArtifact } from './doc-generator';
 
 export interface FillFieldAction {
   action: 'fill';
@@ -100,6 +101,23 @@ export interface GeneratePptxAction {
   [key: string]: any;
 }
 
+export interface GenerateDocAction {
+  action: 'generateDoc' | 'generateDocs' | 'createDoc';
+  title?: string;
+  subtitle?: string;
+  author?: string;
+  date?: string;
+  organization?: string;
+  theme?: string;
+  summary?: string;
+  sections?: Array<any>;
+  content?: string;
+  spec?: any;
+  baseName?: string;
+  filename?: string;
+  [key: string]: any;
+}
+
 export type BrowserAction =
   | FillFieldAction
   | ClickAction
@@ -113,7 +131,8 @@ export type BrowserAction =
   | WriteFileAction
   | PlayAction
   | RunToolAction
-  | GeneratePptxAction;
+  | GeneratePptxAction
+  | GenerateDocAction;
 
 export interface ActionResult {
   success: boolean;
@@ -1244,6 +1263,42 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
         success: false,
         action: 'generatePptx',
         message: `Gagal membuat presentasi PowerPoint: ${err.message}`,
+        error: err.message,
+      };
+    }
+  }
+
+  // 4b. Tabless action: Generate Word Document
+  if (action.action === 'generateDoc' || action.action === 'generateDocs' || (action as any).action === 'createDoc') {
+    try {
+      const act = action as GenerateDocAction;
+      const rawSpec = act.spec || act.doc || act.document || act;
+      const baseName = act.baseName || act.filename || rawSpec.filename;
+
+      const res = await createDocArtifact(rawSpec, baseName);
+
+      // Automatically open live document viewer tab in preview mode
+      let viewerTabId: number | undefined;
+      try {
+        const viewerUrl = chrome.runtime.getURL(`viewer.html?path=${encodeURIComponent(res.docPath)}`);
+        const tab = await chrome.tabs.create({ url: viewerUrl, active: true });
+        viewerTabId = tab.id;
+      } catch (_) {}
+
+      return {
+        success: true,
+        action: 'generateDoc',
+        target: res.docPath,
+        tabId: viewerTabId,
+        message: `Dokumen Word berhasil dibuat dan disimpan di VFS: '${res.docPath}' (.doc / Word MSO), '${res.docxPath}' (.docx), dan '${res.htmlPath}' (web preview).`,
+        data: { docPath: res.docPath, docxPath: res.docxPath, htmlPath: res.htmlPath, tabId: viewerTabId },
+        verified: true,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        action: 'generateDoc',
+        message: `Gagal membuat dokumen Word: ${err.message}`,
         error: err.message,
       };
     }

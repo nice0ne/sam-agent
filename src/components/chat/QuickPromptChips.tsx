@@ -1,5 +1,5 @@
 import React from 'react';
-import { Globe, FileSpreadsheet, FileCode, Search, Presentation } from 'lucide-react';
+import { Globe, FileSpreadsheet, FileCode, Search, Presentation, FileText } from 'lucide-react';
 
 export interface QuickPromptChipsProps {
   onSelectPrompt: (prompt: string) => void;
@@ -12,6 +12,11 @@ interface PromptChip {
 }
 
 const CHIPS: PromptChip[] = [
+  {
+    label: 'Generate Document (Word)',
+    icon: FileText,
+    prompt: 'Buatkan dokumen laporan komprehensif dalam format Word (generateDoc) lengkap dengan judul, ringkasan eksekutif, analisis poin-poin, dan tabel data.',
+  },
   {
     label: 'Office Summary & PPTX',
     icon: Presentation,

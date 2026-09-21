@@ -56,6 +56,8 @@ const TOOL_METADATA: Record<
   play: { label: 'Played video', activeLabel: 'Playing video', icon: Play },
   eval: { label: 'Executed script', activeLabel: 'Executing script', icon: Code2 },
   pressKey: { label: 'Pressed key', activeLabel: 'Pressing key', icon: Keyboard },
+  generateDoc: { label: 'Generated Word Document', activeLabel: 'Generating Word Document', icon: FileText },
+  generatePptx: { label: 'Generated Presentation', activeLabel: 'Generating Presentation', icon: FileText },
   browserAction: { label: 'Browser action executed', activeLabel: 'Executing browser action', icon: Globe },
 };
 
@@ -105,7 +107,10 @@ export const ToolCallCard: React.FC<{ toolPart: ToolCallPart }> = ({ toolPart })
     return action;
   }, [state, meta, input]);
 
-  const filePath = toolName === 'writeFile' ? (input?.path || input?.filePath || input?.file || input?.filename) : undefined;
+  const filePath =
+    toolName === 'writeFile' || toolName === 'generateDoc' || toolName === 'generatePptx'
+      ? (input?.path || input?.filePath || input?.file || input?.filename || (output && typeof output === 'object' && (output.docPath || output.pptxPath || output.target || output.path)))
+      : undefined;
 
   const handleOpenViewer = (e: React.MouseEvent, path: string) => {
     e.stopPropagation();

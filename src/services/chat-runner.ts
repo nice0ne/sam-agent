@@ -115,10 +115,80 @@ When the user asks you to create a new skill, reusable tool, or scriptlet (e.g. 
 - For structured JSON datasets and records, save them in \`/data/<name>.json\`.
 - If the user asks you to modify your own core behavioral directives, principles, or identity, write directly to \`/soul.md\`.
 
-10. OFFICE DOCUMENTS (WORD, EXCEL, PPTX) & PRESENTATION GENERATION:
+10. OFFICE DOCUMENTS (WORD, EXCEL, PPTX) & DOCUMENT / PRESENTATION GENERATION:
 You can understand attached Microsoft Office documents (.docx, .xlsx, .pptx) automatically extracted in your context!
-When asked to summarize an Office document or create a PowerPoint presentation:
-- Provide an articulate executive summary in the chat response (key findings, structured points, metrics).
+
+A. GENERATING WORD DOCUMENTS (.doc / .docx):
+When asked to create a document, report, proposal, letter, SOP, essay, or summary document (e.g. "buatkan dokumen", "generate doc", "buat file doc / word", "buatkan laporan analisis"):
+- ALWAYS use the \`generateDoc\` action block!
+- Do NOT just write raw text to a .docx file with writeFile (it will be corrupted/unreadable).
+- \`generateDoc\` automatically compiles a native Word-compatible document (A4 Print Layout, elegant typography, headings, tables, callouts) into \`/workspace/<title>.doc\` and \`/workspace/<title>.docx\`, and launches an interactive live document preview in Chrome by default with one-click export to Word!
+\`\`\`action
+[
+  {
+    "action": "generateDoc",
+    "title": "Laporan Analisis Pasar & Rekomendasi",
+    "subtitle": "Disusun oleh SAM-Agent",
+    "author": "SAM-Agent",
+    "theme": "corporate",
+    "summary": "Ringkasan eksekutif dari analisis dokumen dan temuan penting.",
+    "sections": [
+      {
+        "title": "1. Latar Belakang & Tujuan",
+        "level": 2,
+        "paragraphs": [
+          "Dokumen ini memuat analisis komprehensif terhadap performa operasional dan tren pasar terkini...",
+          "Tujuan utama adalah mengidentifikasi peluang pertumbuhan dan mitigasi risiko operasional."
+        ]
+      },
+      {
+        "title": "2. Temuan Utama & Metrik Kunci",
+        "level": 2,
+        "paragraphs": [
+          "Berikut adalah metrik kunci performa yang tercatat pada kuartal terakhir:"
+        ],
+        "table": {
+          "headers": ["Indikator", "Target", "Realisasi", "Status"],
+          "rows": [
+            ["Efisiensi Operasional", "80%", "85%", "Tercapai (+5%)"],
+            ["Waktu Respon", "< 24 Jam", "18 Jam", "Optimal"],
+            ["Kepuasan Pengguna", "90%", "92.4%", "Sangat Baik"]
+          ]
+        },
+        "callout": {
+          "type": "tip",
+          "title": "Catatan Penting",
+          "text": "Peningkatan efisiensi didorong oleh otomatisasi alur kerja digital."
+        }
+      },
+      {
+        "title": "3. Rencana Aksi & Rekomendasi",
+        "level": 2,
+        "bulletPoints": [
+          "Memperluas adopsi sistem otomasi pada departemen pendukung",
+          "Melakukan evaluasi berkala setiap akhir kuartal",
+          "Menyusun pedoman SOP implementasi lanjutan"
+        ]
+      }
+    ]
+  }
+]
+\`\`\`
+Alternatively, you can provide Markdown content directly:
+\`\`\`action
+[
+  {
+    "action": "generateDoc",
+    "title": "Laporan Analisis Pasar",
+    "theme": "corporate",
+    "content": "# Laporan Analisis Pasar\\n\\n## 1. Ringkasan Eksekutif\\nIsi ringkasan...\\n\\n## 2. Analisis Data\\nData detail..."
+  }
+]
+\`\`\`
+- Available Themes: \`"corporate"\`, \`"modern"\`, \`"academic"\`, \`"executive"\`, \`"minimal"\`.
+
+B. GENERATING POWERPOINT PRESENTATIONS (.pptx):
+When asked to create a presentation or slide deck:
 - Generate a beautiful, native PowerPoint presentation (.pptx) AND companion interactive web slide deck using the \`generatePptx\` action block:
 \`\`\`action
 [
@@ -175,20 +245,7 @@ When asked to summarize an Office document or create a PowerPoint presentation:
   - \`"midnight-oled"\`: Kontras ultra tinggi (latar hitam pekat #000000, aksen neon cyan & magenta)
   - \`"elegant-cream"\`: Gaya luxury editorial (latar cream hangat #FDFBF7, aksen deep teal & bronze, font Georgia)
 - Dynamic Custom Theme / Desain Kustom:
-  Jika pengguna meminta warna spesifik atau brand kit tertentu (misal warna Telkomsel, BCA, Pertamina, Google, pastel, dsb.), Anda bisa menambahkan objek \`"customTheme"\` di dalam spec:
-  \`\`\`json
-  "customTheme": {
-    "name": "Pertamina Brand",
-    "bg": "FFFFFF",
-    "cardBg": "F8FAFC",
-    "text": "0F172A",
-    "primary": "008037",
-    "accent": "ED1C24",
-    "border": "E2E8F0",
-    "fontFace": "Calibri",
-    "isDark": false
-  }
-  \`\`\`
+  Jika pengguna meminta warna spesifik atau brand kit tertentu, tambahkan objek \`"customTheme"\` di dalam spec.
 - Available layouts: \`"title"\`, \`"content"\`, \`"two-column"\`, \`"stat"\`, \`"conclusion"\`.
 - Executing \`generatePptx\` automatically compiles a native \`.pptx\` file into \`/workspace/<title>.pptx\` (downloadable) and launches an interactive live slide presentation viewer in Chrome!
 
@@ -631,7 +688,12 @@ async function parseAndExecuteActions(
   const results: ActionResult[] = [];
 
   for (const act of actionsToRun) {
-    const isTablessAction = act.action === 'writeFile' || act.action === 'generatePptx';
+    const isTablessAction =
+      act.action === 'writeFile' ||
+      act.action === 'generatePptx' ||
+      act.action === 'generateDoc' ||
+      act.action === 'generateDocs' ||
+      (act as any).action === 'createDoc';
     const isNavAction = act.action === 'navigate' || act.action === 'openTab' || (act as any).action === 'newTab';
     const isTabAction = act.action === 'switchTab' || act.action === 'closeTab';
     const isToolAction = act.action === 'runTool';
@@ -666,6 +728,8 @@ async function parseAndExecuteActions(
         ? 'writeFile'
         : act.action === 'generatePptx'
         ? 'generatePptx'
+        : act.action === 'generateDoc' || act.action === 'generateDocs' || (act as any).action === 'createDoc'
+        ? 'generateDoc'
         : act.action === 'eval'
         ? 'eval'
         : act.action === 'press_key' || (act as any).action === 'pressKey' || (act as any).action === 'key'
