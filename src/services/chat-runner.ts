@@ -8,6 +8,7 @@ import { getAgentSoul, getOptimizationSettings, applyRtkPruning, applyPonytailCo
 import { getOpenTabs, formatOpenTabsPrompt } from './tab-manager';
 import { listUserTools, formatUserToolsPrompt } from './tool-registry';
 import { formatRelevantMemoriesPrompt } from './semantic-memory';
+import { indexFileContent } from './local-rag';
 
 /**
  * Safely parse a base64 Data URL or raw base64 string into components for Multimodal Vision APIs.
@@ -361,6 +362,23 @@ As you accomplish each step, update the subgoal status:
   { "action": "updateSubgoal", "subgoalId": "2", "status": "in_progress" }
 ]
 \`\`\`
+
+15. LOCAL CHUNKED RAG SEARCH (FOR LARGE DOCUMENTS & LOGS IN VFS):
+When you need to read, analyze, summarize, or answer questions from a large file in VFS (PDFs, DOCX, CSV, server logs, or codebases) without overloading your context window:
+- PREFER \`ragSearch\` instead of dumping the entire file!
+- \`ragSearch\` splits files into smart overlapping chunks, executes local BM25 semantic scoring, and returns only the top most relevant excerpts (~400 words each):
+\`\`\`action
+[
+  { "action": "ragSearch", "path": "/workspace/uploads/manual.pdf", "query": "cara konfigurasi database port" }
+]
+\`\`\`
+- If the user asks for a general summary or overview of the entire file, specify a summary query:
+\`\`\`action
+[
+  { "action": "ragSearch", "path": "/workspace/uploads/report.docx", "query": "ringkasan eksekutif dan kesimpulan" }
+]
+\`\`\`
+- You can answer based on the retrieved excerpts, saving 80–90% of token usage!
 
 ### AUTONOMOUS MULTI-STEP EXECUTION:
 You operate in an autonomous execution loop! When you emit an action block, your action is executed immediately in the browser, the page state updates, and you will automatically receive an observation with the new page content and links in the next turn.
@@ -883,7 +901,8 @@ async function parseAndExecuteActions(
       act.action === 'remember' ||
       act.action === 'forget' ||
       act.action === 'createPlan' ||
-      act.action === 'updateSubgoal';
+      act.action === 'updateSubgoal' ||
+      act.action === 'ragSearch';
     const isNavAction = act.action === 'navigate' || act.action === 'openTab' || (act as any).action === 'newTab';
     const isTabAction = act.action === 'switchTab' || act.action === 'closeTab';
     const isToolAction = act.action === 'runTool';
@@ -896,7 +915,9 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'remember'
+      act.action === 'ragSearch'
+        ? 'ragSearch'
+        : act.action === 'remember'
         ? 'remember'
         : act.action === 'forget'
         ? 'forget'
@@ -1092,7 +1113,16 @@ export async function runChatStream(options: ChatRunOptions): Promise<void> {
   if (options.files && options.files.length > 0) {
     for (const file of options.files) {
       try {
-        await saveVfsFile(`/workspace/uploads/${file.name}`, file.content, file.type);
+        const filePath = `/workspace/uploads/${file.name}`;
+        await saveVfsFile(filePath, file.content, file.type);
+
+        // Auto-index into Chunked RAG if file has substantial text content
+        const textContent = file.extractedText || (!file.content.startsWith('data:') ? file.content : '');
+        if (textContent && textContent.length > 300) {
+          indexFileContent(filePath, textContent).catch((err) =>
+            console.warn('[chat-runner] Error auto-indexing file into RAG:', file.name, err)
+          );
+        }
       } catch (err) {
         console.warn('[chat-runner] Could not save attached file to VFS:', file.name, err);
       }
@@ -1429,6 +1459,9 @@ ${BASE_CAPABILITIES_PROMPT}`;
 
     const actionSummary = executedResults
       .map((r) => {
+        if (r.action === 'ragSearch') {
+          return `- [ragSearch (${r.target || 'file'})]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
+        }
         if (r.action === 'searchWeb') {
           return `- [searchWeb (${r.target || 'query'})]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
         }

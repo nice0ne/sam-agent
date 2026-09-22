@@ -85,6 +85,17 @@ export interface AgentMemoryRecord {
   accessCount: number;
 }
 
+export interface FileChunkRecord {
+  id: string;
+  filePath: string;
+  chunkIndex: number;
+  totalChunks: number;
+  content: string;
+  wordCount: number;
+  keywords: string[];
+  updatedAt: number;
+}
+
 export type MessagePart = TextPart | FilePart | ReasoningPart | ToolCallPart | PlanPart;
 
 export interface ThreadMessage {

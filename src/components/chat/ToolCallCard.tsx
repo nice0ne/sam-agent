@@ -22,6 +22,7 @@ import {
   Brain,
   ListChecks,
   CheckCheck,
+  FileSearch,
 } from 'lucide-react';
 import type { ToolCallPart } from '../../types/agent';
 
@@ -69,6 +70,7 @@ const TOOL_METADATA: Record<
   forget: { label: 'Erased from Memory', activeLabel: 'Erasing Memory', icon: Brain },
   createPlan: { label: 'Created Task Plan', activeLabel: 'Creating Task Plan', icon: ListChecks },
   updateSubgoal: { label: 'Updated Subgoal', activeLabel: 'Updating Subgoal', icon: CheckCheck },
+  ragSearch: { label: 'RAG File Search', activeLabel: 'Searching File Chunks', icon: FileSearch },
   browserAction: { label: 'Browser action executed', activeLabel: 'Executing browser action', icon: Globe },
 };
 

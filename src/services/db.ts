@@ -6,6 +6,7 @@ import type {
   VfsFileRecord,
   StoredHandleRecord,
   AgentMemoryRecord,
+  FileChunkRecord,
 } from '../types/agent';
 
 export class AgentDatabase extends Dexie {
@@ -14,6 +15,7 @@ export class AgentDatabase extends Dexie {
   files!: Table<VfsFileRecord, string>;
   handles!: Table<StoredHandleRecord, string>;
   memories!: Table<AgentMemoryRecord, string>;
+  fileChunks!: Table<FileChunkRecord, string>;
 
   constructor() {
     super('IctAgentDB');
@@ -41,6 +43,14 @@ export class AgentDatabase extends Dexie {
       files: 'path, name, mimeType, size, updatedAt',
       handles: 'id, name, mountedAt',
       memories: 'id, category, createdAt, lastAccessedAt, accessCount',
+    });
+    this.version(6).stores({
+      threads: 'id, title, createdAt, updatedAt',
+      domainMemory: 'domain, updatedAt',
+      files: 'path, name, mimeType, size, updatedAt',
+      handles: 'id, name, mountedAt',
+      memories: 'id, category, createdAt, lastAccessedAt, accessCount',
+      fileChunks: 'id, filePath, chunkIndex, updatedAt',
     });
   }
 }

@@ -18,6 +18,7 @@ import { executeUserTool } from './tool-registry';
 import { createDocArtifact } from './doc-generator';
 import { executeWebSearch, formatWebSearchResults } from './web-search';
 import { addMemory, deleteMemory, searchMemories } from './semantic-memory';
+import { formatRagSearchPrompt } from './local-rag';
 
 export interface ActionAssertion {
   urlMatches?: string;
@@ -191,6 +192,14 @@ export interface UpdateSubgoalAction {
   [key: string]: any;
 }
 
+export interface RagSearchAction {
+  action: 'ragSearch';
+  path: string;
+  query: string;
+  topK?: number;
+  [key: string]: any;
+}
+
 export type BrowserAction =
   | FillFieldAction
   | ClickAction
@@ -213,7 +222,8 @@ export type BrowserAction =
   | RememberAction
   | ForgetAction
   | CreatePlanAction
-  | UpdateSubgoalAction;
+  | UpdateSubgoalAction
+  | RagSearchAction;
 
 export interface ActionResult {
   success: boolean;
@@ -2176,6 +2186,29 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
       },
       verified: true,
     };
+  }
+
+  // 8. Local Chunked RAG Search (for large files in VFS)
+  if (action.action === 'ragSearch') {
+    try {
+      const ragPrompt = await formatRagSearchPrompt(action.path, action.query, action.topK || 4);
+      return {
+        success: true,
+        action: 'ragSearch',
+        target: action.path,
+        message: ragPrompt,
+        data: { path: action.path, query: action.query },
+        verified: true,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        action: 'ragSearch',
+        target: action.path,
+        message: `Gagal melakukan RAG search pada file "${action.path}": ${err.message}`,
+        error: err.message,
+      };
+    }
   }
 
   // 5. In-page DOM actions (fill, click, select, eval)
