@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Copy, Check, FileText, Eye } from 'lucide-react';
 import { MarkdownContent } from './MarkdownContent';
 import { ToolCallCard } from './ToolCallCard';
+import { PlanCard } from './PlanCard';
 import type { ThreadMessage } from '../../types/agent';
 
 interface MessageBubbleProps {
@@ -134,6 +135,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isWaiting
               }
               if (part.type === 'tool-call') {
                 return <ToolCallCard key={part.toolCallId || pIdx} toolPart={part} />;
+              }
+              if (part.type === 'plan') {
+                return <PlanCard key={part.planId || pIdx} planPart={part} />;
               }
               if (part.type === 'reasoning') {
                 return (

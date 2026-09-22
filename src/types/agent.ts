@@ -59,7 +59,33 @@ export interface ReasoningPart {
   state?: 'thinking' | 'done';
 }
 
-export type MessagePart = TextPart | FilePart | ReasoningPart | ToolCallPart;
+export interface SubgoalItem {
+  id: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  summary?: string;
+}
+
+export interface PlanPart {
+  type: 'plan';
+  planId: string;
+  title: string;
+  subgoals: SubgoalItem[];
+}
+
+export interface AgentMemoryRecord {
+  id: string;
+  category: 'preference' | 'instruction' | 'fact' | 'credential' | 'task_result';
+  content: string;
+  keywords: string[];
+  sourceThreadId?: string;
+  sourceUrl?: string;
+  createdAt: number;
+  lastAccessedAt: number;
+  accessCount: number;
+}
+
+export type MessagePart = TextPart | FilePart | ReasoningPart | ToolCallPart | PlanPart;
 
 export interface ThreadMessage {
   id: string;

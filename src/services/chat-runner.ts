@@ -1,5 +1,5 @@
 import { appendMessageToThread, db, recordDomainLearning } from './db';
-import type { ThreadMessage, MessagePart, ToolCallPart, FilePart, AttachedFilePayload } from '../types/agent';
+import type { ThreadMessage, MessagePart, ToolCallPart, FilePart, AttachedFilePayload, PlanPart } from '../types/agent';
 import { saveVfsFile } from './vfs';
 import { STORAGE_KEYS } from '../stores/useAppStore';
 import { getActivePageContext, formatPageContextPrompt, PageContext } from './page-reader';
@@ -7,6 +7,7 @@ import { executePageAction, BrowserAction, ActionResult } from './page-actions';
 import { getAgentSoul, getOptimizationSettings, applyRtkPruning, applyPonytailCompression, MessageItem, ImageItem } from './soul';
 import { getOpenTabs, formatOpenTabsPrompt } from './tab-manager';
 import { listUserTools, formatUserToolsPrompt } from './tool-registry';
+import { formatRelevantMemoriesPrompt } from './semantic-memory';
 
 /**
  * Safely parse a base64 Data URL or raw base64 string into components for Multimodal Vision APIs.
@@ -324,6 +325,42 @@ When asked to create a presentation or slide deck:
 You possess native visual and image recognition capabilities! When the user attaches, uploads, or pastes an image (diagrams, receipts, invoices, screenshots, error logs, charts, photos, UI designs, or handwritten notes):
 - You can inspect, read, and analyze the image directly.
 - Perform optical character recognition (OCR), extract text and data tables, identify issues or error banners in screenshots, assess UI mockups, and answer questions about visual content with high accuracy and helpfulness.
+
+13. SEMANTIC & EPISODIC MEMORY (PERSISTENT FACTS ACROSS CHATS):
+You have a persistent local episodic memory! You can explicitly save facts, user preferences, instructions, or findings so they persist across conversations:
+\`\`\`action
+[
+  { "action": "remember", "category": "preference", "content": "User lebih menyukai respon dalam Bahasa Indonesia formal dan data dalam tabel." }
+]
+\`\`\`
+Or delete an outdated memory:
+\`\`\`action
+[ { "action": "forget", "query": "bahasa indonesia" } ]
+\`\`\`
+
+14. HIERARCHICAL TASK PLANNER & SUBGOALS (FOR COMPLEX MULTI-STEP MISSIONS):
+When given a complex, multi-objective task (e.g. comparing products across multiple sites, multi-step research, report creation), FIRST emit a structured task plan with subgoals:
+\`\`\`action
+[
+  {
+    "action": "createPlan",
+    "title": "Riset dan Komparasi Laptop 2026",
+    "subgoals": [
+      { "id": "1", "title": "Cari data spesifikasi laptop A", "status": "in_progress" },
+      { "id": "2", "title": "Cari data spesifikasi laptop B", "status": "pending" },
+      { "id": "3", "title": "Bandingkan harga dan buat tabel", "status": "pending" },
+      { "id": "4", "title": "Generate laporan Word", "status": "pending" }
+    ]
+  }
+]
+\`\`\`
+As you accomplish each step, update the subgoal status:
+\`\`\`action
+[
+  { "action": "updateSubgoal", "subgoalId": "1", "status": "completed", "summary": "Spesifikasi laptop A ditemukan" },
+  { "action": "updateSubgoal", "subgoalId": "2", "status": "in_progress" }
+]
+\`\`\`
 
 ### AUTONOMOUS MULTI-STEP EXECUTION:
 You operate in an autonomous execution loop! When you emit an action block, your action is executed immediately in the browser, the page state updates, and you will automatically receive an observation with the new page content and links in the next turn.
@@ -842,7 +879,11 @@ async function parseAndExecuteActions(
       act.action === 'generateDocs' ||
       (act as any).action === 'createDoc' ||
       act.action === 'searchWeb' ||
-      (act as any).action === 'webSearch';
+      (act as any).action === 'webSearch' ||
+      act.action === 'remember' ||
+      act.action === 'forget' ||
+      act.action === 'createPlan' ||
+      act.action === 'updateSubgoal';
     const isNavAction = act.action === 'navigate' || act.action === 'openTab' || (act as any).action === 'newTab';
     const isTabAction = act.action === 'switchTab' || act.action === 'closeTab';
     const isToolAction = act.action === 'runTool';
@@ -855,7 +896,15 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'visualInspect'
+      act.action === 'remember'
+        ? 'remember'
+        : act.action === 'forget'
+        ? 'forget'
+        : act.action === 'createPlan'
+        ? 'createPlan'
+        : act.action === 'updateSubgoal'
+        ? 'updateSubgoal'
+        : act.action === 'visualInspect'
         ? 'visualInspect'
         : act.action === 'clickTag'
         ? 'clickTag'
@@ -932,6 +981,38 @@ async function parseAndExecuteActions(
           if (!res.success) {
             part.errorText = res.error || res.message;
           }
+
+          // Hierarchical Plan updates
+          if (res.action === 'createPlan' && res.data) {
+            let plan = msg.parts.find((p) => p.type === 'plan') as PlanPart | undefined;
+            if (!plan) {
+              plan = {
+                type: 'plan',
+                planId: res.data.planId || crypto.randomUUID(),
+                title: res.data.title || 'Task Plan',
+                subgoals: res.data.subgoals || [],
+              };
+              msg.parts.push(plan);
+            } else {
+              plan.title = res.data.title || plan.title;
+              plan.subgoals = res.data.subgoals || plan.subgoals;
+            }
+          }
+
+          if (res.action === 'updateSubgoal' && res.data) {
+            for (const m of current.messages) {
+              const plan = m.parts.find((p) => p.type === 'plan') as PlanPart | undefined;
+              if (plan) {
+                const sg = plan.subgoals.find((s) => s.id === res.data.subgoalId);
+                if (sg) {
+                  sg.status = res.data.status;
+                  if (res.data.summary) sg.summary = res.data.summary;
+                  break;
+                }
+              }
+            }
+          }
+
           await db.threads.put(current);
         }
       }
@@ -1160,6 +1241,16 @@ ${BASE_CAPABILITIES_PROMPT}`;
       }
     } catch (toolErr) {
       console.warn('[chat-runner] Error querying user tools:', toolErr);
+    }
+
+    // Append relevant episodic & semantic memories if available
+    try {
+      const memoriesPrompt = await formatRelevantMemoriesPrompt(prompt);
+      if (memoriesPrompt) {
+        finalSystemPrompt += `\n\n${memoriesPrompt}`;
+      }
+    } catch (memErr) {
+      console.warn('[chat-runner] Error querying semantic memories:', memErr);
     }
 
     // Prepare Assistant Placeholder Message in DB

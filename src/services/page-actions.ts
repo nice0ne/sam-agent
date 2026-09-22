@@ -17,6 +17,7 @@ import { switchToTab, closeBrowserTab, isRestrictedTabUrl } from './tab-manager'
 import { executeUserTool } from './tool-registry';
 import { createDocArtifact } from './doc-generator';
 import { executeWebSearch, formatWebSearchResults } from './web-search';
+import { addMemory, deleteMemory, searchMemories } from './semantic-memory';
 
 export interface ActionAssertion {
   urlMatches?: string;
@@ -161,6 +162,35 @@ export interface VisualInspectAction {
   [key: string]: any;
 }
 
+export interface RememberAction {
+  action: 'remember';
+  content: string;
+  category?: 'preference' | 'instruction' | 'fact' | 'credential' | 'task_result';
+  [key: string]: any;
+}
+
+export interface ForgetAction {
+  action: 'forget';
+  memoryId?: string;
+  query?: string;
+  [key: string]: any;
+}
+
+export interface CreatePlanAction {
+  action: 'createPlan';
+  title: string;
+  subgoals: Array<{ id?: string; title: string; status?: 'pending' | 'in_progress' | 'completed' | 'failed' }>;
+  [key: string]: any;
+}
+
+export interface UpdateSubgoalAction {
+  action: 'updateSubgoal';
+  subgoalId: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  summary?: string;
+  [key: string]: any;
+}
+
 export type BrowserAction =
   | FillFieldAction
   | ClickAction
@@ -179,7 +209,11 @@ export type BrowserAction =
   | SearchWebAction
   | ClickTagAction
   | FillTagAction
-  | VisualInspectAction;
+  | VisualInspectAction
+  | RememberAction
+  | ForgetAction
+  | CreatePlanAction
+  | UpdateSubgoalAction;
 
 export interface ActionResult {
   success: boolean;
@@ -2037,6 +2071,110 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
       error: hasError ? String(toolOutput.error) : undefined,
       data: toolOutput,
       verified: !hasError,
+    };
+  }
+
+  // 6. Semantic Memory Actions (remember / forget)
+  if (action.action === 'remember') {
+    try {
+      const rec = await addMemory(
+        action.content,
+        action.category || 'fact',
+        undefined,
+        undefined
+      );
+      return {
+        success: true,
+        action: 'remember',
+        target: rec.content.slice(0, 30),
+        message: `Berhasil mengingat [${rec.category.toUpperCase()}]: "${rec.content}". Ingatan ini akan tersimpan permanen dan dapat di-recall di obrolan mendatang.`,
+        data: rec,
+        verified: true,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        action: 'remember',
+        message: `Gagal menyimpan memori: ${err.message}`,
+        error: err.message,
+      };
+    }
+  }
+
+  if (action.action === 'forget') {
+    try {
+      if (action.memoryId) {
+        await deleteMemory(action.memoryId);
+        return {
+          success: true,
+          action: 'forget',
+          message: `Ingatan dengan ID ${action.memoryId} telah dihapus.`,
+          verified: true,
+        };
+      } else if (action.query) {
+        const matches = await searchMemories(action.query, 1);
+        if (matches.length > 0) {
+          await deleteMemory(matches[0].id);
+          return {
+            success: true,
+            action: 'forget',
+            message: `Ingatan terkait "${matches[0].content}" telah berhasil dihapus.`,
+            verified: true,
+          };
+        }
+        return {
+          success: false,
+          action: 'forget',
+          message: `Tidak ditemukan ingatan yang cocok dengan query "${action.query}".`,
+        };
+      }
+      return {
+        success: false,
+        action: 'forget',
+        message: 'Harap sertakan memoryId atau query untuk melupakan.',
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        action: 'forget',
+        message: `Gagal menghapus ingatan: ${err.message}`,
+        error: err.message,
+      };
+    }
+  }
+
+  // 7. Hierarchical Task Planner Actions (createPlan / updateSubgoal)
+  if (action.action === 'createPlan') {
+    const planId = crypto.randomUUID();
+    const subgoals = (action.subgoals || []).map((s: any, idx: number) => ({
+      id: s.id || String(idx + 1),
+      title: s.title || `Subgoal ${idx + 1}`,
+      status: s.status || 'pending',
+      summary: s.summary,
+    }));
+
+    return {
+      success: true,
+      action: 'createPlan',
+      target: action.title,
+      message: `Rencana tugas "${action.title}" berhasil dibuat dengan ${subgoals.length} subgoals.`,
+      data: { planId, title: action.title, subgoals },
+      verified: true,
+    };
+  }
+
+  if (action.action === 'updateSubgoal') {
+    return {
+      success: true,
+      action: 'updateSubgoal',
+      target: action.subgoalId,
+      message: `Subgoal #${action.subgoalId} diperbarui menjadi status [${action.status}].${action.summary ? ` (${action.summary})` : ''}`,
+      data: {
+        subgoalId: action.subgoalId,
+        status: action.status,
+        summary: action.summary,
+      },
+      verified: true,
     };
   }
 

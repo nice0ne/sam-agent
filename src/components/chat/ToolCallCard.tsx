@@ -19,6 +19,9 @@ import {
   Code2,
   Play,
   Keyboard,
+  Brain,
+  ListChecks,
+  CheckCheck,
 } from 'lucide-react';
 import type { ToolCallPart } from '../../types/agent';
 
@@ -62,6 +65,10 @@ const TOOL_METADATA: Record<
   visualInspect: { label: 'Visual Inspection (SoM)', activeLabel: 'Capturing Visual Marks', icon: Eye },
   clickTag: { label: 'Clicked Visual Tag', activeLabel: 'Clicking Visual Tag', icon: MousePointerClick },
   fillTag: { label: 'Filled Visual Tag', activeLabel: 'Filling Visual Tag', icon: Edit3 },
+  remember: { label: 'Saved to Memory', activeLabel: 'Saving to Memory', icon: Brain },
+  forget: { label: 'Erased from Memory', activeLabel: 'Erasing Memory', icon: Brain },
+  createPlan: { label: 'Created Task Plan', activeLabel: 'Creating Task Plan', icon: ListChecks },
+  updateSubgoal: { label: 'Updated Subgoal', activeLabel: 'Updating Subgoal', icon: CheckCheck },
   browserAction: { label: 'Browser action executed', activeLabel: 'Executing browser action', icon: Globe },
 };
 

@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, Key, Sparkles, Server, Check, ShieldCheck, Eye, EyeOff,
   Cpu, Wifi, AlertCircle, LoaderCircle, BrainCircuit, Database, Trash2,
-  FileCode, RotateCcw, ExternalLink, Zap, Scissors, Sliders, Globe
+  FileCode, RotateCcw, ExternalLink, Zap, Scissors, Sliders, Globe, Brain
 } from 'lucide-react';
 import { useAppStore, STORAGE_KEYS } from '../../stores/useAppStore';
 import { getAllDomainMemories, clearDomainMemories } from '../../services/db';
-import type { DomainMemoryRecord } from '../../types/agent';
+import type { DomainMemoryRecord, AgentMemoryRecord } from '../../types/agent';
 import {
   getAgentSoul,
   saveAgentSoul,
@@ -14,6 +14,11 @@ import {
   getOptimizationSettings,
   saveOptimizationSettings,
 } from '../../services/soul';
+import {
+  listAllMemories,
+  deleteMemory,
+  clearAllMemories,
+} from '../../services/semantic-memory';
 
 interface ProviderMeta {
   id: string;
@@ -154,6 +159,10 @@ export const SettingsView: React.FC = () => {
   // Domain Memory state
   const [memories, setMemories] = useState<DomainMemoryRecord[]>([]);
 
+  // Semantic & Episodic Memory state
+  const [episodicMemories, setEpisodicMemories] = useState<AgentMemoryRecord[]>([]);
+  const [memoryFilter, setMemoryFilter] = useState('');
+
   // Agent Soul & Token Optimization state
   const [soulContent, setSoulContent] = useState('');
   const [isSoulSaved, setIsSoulSaved] = useState(false);
@@ -172,8 +181,16 @@ export const SettingsView: React.FC = () => {
     } catch (_) {}
   };
 
+  const loadEpisodicMemories = async () => {
+    try {
+      const list = await listAllMemories();
+      setEpisodicMemories(list);
+    } catch (_) {}
+  };
+
   useEffect(() => {
     loadMemories();
+    loadEpisodicMemories();
     const loadSoulAndOptimizations = async () => {
       try {
         const [soul, opts] = await Promise.all([
@@ -197,6 +214,18 @@ export const SettingsView: React.FC = () => {
       });
     }
   }, []);
+
+  const handleDeleteEpisodicMemory = async (id: string) => {
+    await deleteMemory(id);
+    setEpisodicMemories((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  const handleClearEpisodicMemories = async () => {
+    if (confirm('Clear all stored episodic and semantic memories?')) {
+      await clearAllMemories();
+      setEpisodicMemories([]);
+    }
+  };
 
   const handleClearMemories = async () => {
     if (confirm('Clear all learned domain memory and selector mappings?')) {
@@ -1018,6 +1047,87 @@ export const SettingsView: React.FC = () => {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+
+        {/* Episodic & Semantic Memory Manager */}
+        <div className="p-3.5 rounded-xl border border-border bg-card/60 space-y-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
+              <Brain className="size-4 text-primary" />
+              <span>Episodic & Semantic Memory</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-400 font-mono">
+                {episodicMemories.length} item{episodicMemories.length === 1 ? '' : 's'}
+              </span>
+            </div>
+            {episodicMemories.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearEpisodicMemories}
+                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-rose-500 transition-colors cursor-pointer"
+                title="Clear all stored memories"
+              >
+                <Trash2 className="size-3" />
+                <span>Clear All</span>
+              </button>
+            )}
+          </div>
+
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Persistent facts, user preferences, and instructions remembered across conversations. Indexed offline in your browser using local BM25 scoring.
+          </p>
+
+          {episodicMemories.length > 0 && (
+            <input
+              type="text"
+              placeholder="Filter memories by keyword..."
+              value={memoryFilter}
+              onChange={(e) => setMemoryFilter(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          )}
+
+          {episodicMemories.length === 0 ? (
+            <div className="px-3 py-2 rounded-lg bg-background/50 border border-border text-[11px] text-muted-foreground italic flex items-center gap-2">
+              <Brain className="size-3.5 text-muted-foreground shrink-0" />
+              <span>No memories stored yet. Tell the agent "ingat bahwa...", "catat preferensi saya...", or emit a remember action to store permanent facts.</span>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {episodicMemories
+                .filter((m) =>
+                  !memoryFilter ||
+                  m.content.toLowerCase().includes(memoryFilter.toLowerCase()) ||
+                  m.category.toLowerCase().includes(memoryFilter.toLowerCase())
+                )
+                .map((m) => (
+                  <div
+                    key={m.id}
+                    className="p-2.5 rounded-lg bg-background/80 border border-border text-xs flex items-start justify-between gap-2"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
+                          {m.category}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          accessed {m.accessCount || 1}x
+                        </span>
+                      </div>
+                      <p className="text-foreground leading-relaxed break-words">{m.content}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteEpisodicMemory(m.id)}
+                      className="p-1 rounded text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer shrink-0 transition-colors"
+                      title="Delete this memory"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
             </div>
           )}
         </div>

@@ -1,11 +1,19 @@
 import Dexie, { type Table } from 'dexie';
-import type { ThreadRecord, ThreadMessage, DomainMemoryRecord, VfsFileRecord, StoredHandleRecord } from '../types/agent';
+import type {
+  ThreadRecord,
+  ThreadMessage,
+  DomainMemoryRecord,
+  VfsFileRecord,
+  StoredHandleRecord,
+  AgentMemoryRecord,
+} from '../types/agent';
 
 export class AgentDatabase extends Dexie {
   threads!: Table<ThreadRecord, string>;
   domainMemory!: Table<DomainMemoryRecord, string>;
   files!: Table<VfsFileRecord, string>;
   handles!: Table<StoredHandleRecord, string>;
+  memories!: Table<AgentMemoryRecord, string>;
 
   constructor() {
     super('IctAgentDB');
@@ -26,6 +34,13 @@ export class AgentDatabase extends Dexie {
       domainMemory: 'domain, updatedAt',
       files: 'path, name, mimeType, size, updatedAt',
       handles: 'id, name, mountedAt',
+    });
+    this.version(5).stores({
+      threads: 'id, title, createdAt, updatedAt',
+      domainMemory: 'domain, updatedAt',
+      files: 'path, name, mimeType, size, updatedAt',
+      handles: 'id, name, mountedAt',
+      memories: 'id, category, createdAt, lastAccessedAt, accessCount',
     });
   }
 }
