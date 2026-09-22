@@ -126,6 +126,26 @@ export interface SearchWebAction {
   [key: string]: any;
 }
 
+export interface ClickTagAction {
+  action: 'clickTag';
+  tag: number;
+  [key: string]: any;
+}
+
+export interface FillTagAction {
+  action: 'fillTag';
+  tag: number;
+  value: string;
+  submit?: boolean;
+  [key: string]: any;
+}
+
+export interface VisualInspectAction {
+  action: 'visualInspect' | 'captureSoM';
+  prompt?: string;
+  [key: string]: any;
+}
+
 export type BrowserAction =
   | FillFieldAction
   | ClickAction
@@ -141,7 +161,10 @@ export type BrowserAction =
   | RunToolAction
   | GeneratePptxAction
   | GenerateDocAction
-  | SearchWebAction;
+  | SearchWebAction
+  | ClickTagAction
+  | FillTagAction
+  | VisualInspectAction;
 
 export interface ActionResult {
   success: boolean;
@@ -157,6 +180,156 @@ export interface ActionResult {
   strategyUsed?: string;
   verifiedSelector?: string;
   editorType?: string;
+}
+
+export interface TaggedElementSummary {
+  tag: number;
+  text: string;
+  role: string;
+}
+
+/**
+ * In-Page Set-of-Marks Badge Injector (runs inside target tab)
+ */
+export function inPageInjectSetOfMarks(): { count: number; items: TaggedElementSummary[] } {
+  document.querySelectorAll('.sam-som-tag-badge').forEach((el) => el.remove());
+  const win = window as any;
+  win.__sam_som_map = new Map<number, HTMLElement>();
+
+  const interactiveSelectors = [
+    'button',
+    'input',
+    'select',
+    'textarea',
+    'a[href]',
+    '[role="button"]',
+    '[role="link"]',
+    '[role="checkbox"]',
+    '[role="radio"]',
+    '[role="tab"]',
+    '[role="menuitem"]',
+    '[onclick]',
+  ];
+
+  const elements = Array.from(document.querySelectorAll(interactiveSelectors.join(', ')));
+  let tagId = 1;
+  const taggedList: TaggedElementSummary[] = [];
+
+  for (const el of elements) {
+    if (tagId > 60) break;
+    const htmlEl = el as HTMLElement;
+    const rect = htmlEl.getBoundingClientRect();
+    if (
+      rect.width < 6 ||
+      rect.height < 6 ||
+      rect.bottom < 0 ||
+      rect.top > window.innerHeight ||
+      rect.right < 0 ||
+      rect.left > window.innerWidth
+    ) {
+      continue;
+    }
+
+    const style = window.getComputedStyle(htmlEl);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+      continue;
+    }
+
+    win.__sam_som_map.set(tagId, htmlEl);
+
+    const badge = document.createElement('div');
+    badge.className = 'sam-som-tag-badge';
+    badge.setAttribute('data-tag', String(tagId));
+    badge.textContent = `${tagId}`;
+    badge.style.cssText = `
+      position: fixed !important;
+      top: ${Math.max(0, rect.top)}px !important;
+      left: ${Math.max(0, rect.left)}px !important;
+      background: #facc15 !important;
+      color: #000000 !important;
+      font-size: 11px !important;
+      font-weight: 800 !important;
+      font-family: ui-monospace, monospace !important;
+      padding: 1px 4px !important;
+      border-radius: 4px !important;
+      border: 1.5px solid #000000 !important;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5) !important;
+      z-index: 2147483647 !important;
+      pointer-events: none !important;
+      line-height: 1 !important;
+    `;
+    document.body.appendChild(badge);
+
+    const textDesc = (
+      htmlEl.innerText ||
+      htmlEl.getAttribute('aria-label') ||
+      htmlEl.getAttribute('title') ||
+      htmlEl.getAttribute('placeholder') ||
+      htmlEl.getAttribute('value') ||
+      ''
+    )
+      .slice(0, 30)
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    taggedList.push({
+      tag: tagId,
+      text: textDesc || htmlEl.tagName.toLowerCase(),
+      role: htmlEl.tagName.toLowerCase(),
+    });
+
+    tagId++;
+  }
+
+  return { count: taggedList.length, items: taggedList };
+}
+
+/**
+ * Remove Set-of-Marks badges from DOM
+ */
+export function inPageRemoveSetOfMarks(): void {
+  document.querySelectorAll('.sam-som-tag-badge').forEach((el) => el.remove());
+}
+
+/**
+ * Capture Tab with Set-of-Marks Overlay, then instantly remove overlay (Ghost Overlay)
+ */
+export async function captureSetOfMarks(tabId: number): Promise<{
+  screenshotUrl: string;
+  items: TaggedElementSummary[];
+  error?: string;
+}> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab || tab.windowId === undefined || isRestrictedTabUrl(tab.url || '')) {
+      return { screenshotUrl: '', items: [], error: 'Tab is restricted or unavailable' };
+    }
+
+    // 1. Inject visual SoM badges
+    const injectResults = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: inPageInjectSetOfMarks,
+    });
+    const taggedData = injectResults?.[0]?.result || { count: 0, items: [] };
+
+    // 2. Wait 60ms for paint, then capture screenshot
+    await new Promise((r) => setTimeout(r, 60));
+    const rawScreenshot = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 75 });
+
+    // 3. Ghost Overlay: immediately remove badges so user is not disturbed!
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: inPageRemoveSetOfMarks,
+    });
+
+    return {
+      screenshotUrl: rawScreenshot || '',
+      items: taggedData.items || [],
+    };
+  } catch (err: any) {
+    console.warn('[PageActions] captureSetOfMarks failed:', err);
+    return { screenshotUrl: '', items: [], error: err.message };
+  }
 }
 
 /**
@@ -897,6 +1070,83 @@ async function inPageActionRunner(actionPayload: BrowserAction): Promise<ActionR
       };
     }
 
+    if (actionPayload.action === 'clickTag') {
+      const tag = actionPayload.tag;
+      const win = window as any;
+      let target = win.__sam_som_map?.get(tag) as HTMLElement | undefined;
+
+      if (!target) {
+        target = document.querySelector(`[data-tag="${tag}"]`) as HTMLElement;
+      }
+
+      if (!target) {
+        return {
+          success: false,
+          action: 'clickTag',
+          target: `[Tag #${tag}]`,
+          message: `Visual mark tag #${tag} tidak ditemukan pada halaman ini. Coba panggil visualInspect kembali.`,
+          error: `Tag #${tag} not found`,
+        };
+      }
+
+      highlightElement(target);
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      await sleep(150);
+
+      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+      target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+      target.focus();
+      target.click();
+
+      const desc = target.innerText?.slice(0, 30).trim() || target.tagName.toLowerCase();
+      return {
+        success: true,
+        action: 'clickTag',
+        target: `[Tag #${tag}] (${desc})`,
+        message: `Berhasil mengklik elemen visual tag #${tag} (${desc}).`,
+        verified: true,
+      };
+    }
+
+    if (actionPayload.action === 'fillTag') {
+      const tag = actionPayload.tag;
+      const value = actionPayload.value || '';
+      const win = window as any;
+      let target = win.__sam_som_map?.get(tag) as HTMLElement | undefined;
+
+      if (!target) {
+        target = document.querySelector(`[data-tag="${tag}"]`) as HTMLElement;
+      }
+
+      if (!target) {
+        return {
+          success: false,
+          action: 'fillTag',
+          target: `[Tag #${tag}]`,
+          message: `Visual mark tag #${tag} tidak ditemukan pada halaman ini. Coba panggil visualInspect kembali.`,
+          error: `Tag #${tag} not found`,
+        };
+      }
+
+      highlightElement(target);
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      await sleep(150);
+
+      target.focus();
+      const inputEl = target as HTMLInputElement | HTMLTextAreaElement;
+      inputEl.value = value;
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+
+      return {
+        success: true,
+        action: 'fillTag',
+        target: `[Tag #${tag}]`,
+        message: `Berhasil mengisi visual input tag #${tag} dengan: "${value}".`,
+        verified: true,
+      };
+    }
+
     if (actionPayload.action === 'play') {
       const video = document.querySelector<HTMLVideoElement>(actionPayload.selector || 'video');
       if (video) {
@@ -1336,6 +1586,63 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
         success: false,
         action: 'searchWeb',
         message: `Pencarian web gagal: ${err.message}`,
+        error: err.message,
+      };
+    }
+  }
+
+  // 4b. Visual Grounding / Set-of-Marks visual inspect
+  if (action.action === 'visualInspect') {
+    let targetTabId = tabId;
+    if (!targetTabId || targetTabId <= 0) {
+      try {
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        targetTabId = activeTab?.id || 0;
+      } catch (_) {}
+    }
+
+    if (!targetTabId || targetTabId <= 0) {
+      return {
+        success: false,
+        action: 'visualInspect',
+        message: 'Tidak ada active tab yang tersedia untuk visual inspection.',
+        error: 'No active tab',
+      };
+    }
+
+    try {
+      const somResult = await captureSetOfMarks(targetTabId);
+      if (somResult.error) {
+        return {
+          success: false,
+          action: 'visualInspect',
+          tabId: targetTabId,
+          message: `Gagal melakukan visual inspection: ${somResult.error}`,
+          error: somResult.error,
+        };
+      }
+
+      const summaryList = somResult.items
+        .map((it) => `[${it.tag}] <${it.role}> ${it.text}`)
+        .join('\n');
+
+      return {
+        success: true,
+        action: 'visualInspect',
+        tabId: targetTabId,
+        message: `Visual inspection berhasil diambil (${somResult.items.length} elemen terdeteksi).\nScreenshot berlabel angka telah di-attach ke percakapan.\nGunakan aksi clickTag(tag) atau fillTag(tag, value) untuk berinteraksi:\n${summaryList}`,
+        data: {
+          screenshotUrl: somResult.screenshotUrl,
+          items: somResult.items,
+        },
+        verified: true,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        action: 'visualInspect',
+        tabId: targetTabId,
+        message: `Visual inspection exception: ${err.message}`,
         error: err.message,
       };
     }

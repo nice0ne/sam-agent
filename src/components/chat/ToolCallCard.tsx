@@ -59,6 +59,9 @@ const TOOL_METADATA: Record<
   pressKey: { label: 'Pressed key', activeLabel: 'Pressing key', icon: Keyboard },
   generateDoc: { label: 'Generated Word Document', activeLabel: 'Generating Word Document', icon: FileText },
   generatePptx: { label: 'Generated Presentation', activeLabel: 'Generating Presentation', icon: FileText },
+  visualInspect: { label: 'Visual Inspection (SoM)', activeLabel: 'Capturing Visual Marks', icon: Eye },
+  clickTag: { label: 'Clicked Visual Tag', activeLabel: 'Clicking Visual Tag', icon: MousePointerClick },
+  fillTag: { label: 'Filled Visual Tag', activeLabel: 'Filling Visual Tag', icon: Edit3 },
   browserAction: { label: 'Browser action executed', activeLabel: 'Executing browser action', icon: Globe },
 };
 

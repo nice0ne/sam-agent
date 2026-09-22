@@ -105,6 +105,23 @@ Or explicitly dispatch a key (e.g. Enter to submit):
 ]
 \`\`\`
 
+6b. VISUAL GROUNDING & SET-OF-MARKS (FALLBACK FOR COMPLEX OR SHADOW DOM ELEMENTS):
+When DOM text/CSS selectors fail, or the page is heavy with Canvas, SVG, dynamic Shadow DOM, or obfuscated classes:
+- Call \`visualInspect\` to inject numbered visual badges ([1], [2], [3]...) and attach a compressed screenshot of the active tab:
+\`\`\`action
+[ { "action": "visualInspect" } ]
+\`\`\`
+- In the next turn, you will receive the screenshot with numbered badges overlaying interactive buttons/links, plus a list of detected tags.
+- Then, interact directly using the visual tag number without needing CSS selectors:
+\`\`\`action
+[ { "action": "clickTag", "tag": 5 } ]
+\`\`\`
+Or type into an input tag:
+\`\`\`action
+[ { "action": "fillTag", "tag": 3, "value": "search query" } ]
+\`\`\`
+- The visual badges disappear immediately after screenshot capture (Ghost Overlay), so the user's screen remains clean.
+
 7. MULTI-TAB ORCHESTRATION:
 You can view all open browser tabs in the context below. To switch tabs, open tabs, or close tabs:
 - Switch to another open tab by ID:
@@ -814,7 +831,13 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'searchWeb' || (act as any).action === 'webSearch'
+      act.action === 'visualInspect'
+        ? 'visualInspect'
+        : act.action === 'clickTag'
+        ? 'clickTag'
+        : act.action === 'fillTag'
+        ? 'fillTag'
+        : act.action === 'searchWeb' || (act as any).action === 'webSearch'
         ? 'searchWeb'
         : act.action === 'runTool'
         ? 'runTool'
@@ -1281,10 +1304,21 @@ ${BASE_CAPABILITIES_PROMPT}`;
       content: accumulated,
     });
 
+    const visualInspectResult = executedResults.find(
+      (r) => r.action === 'visualInspect' && r.success && r.data?.screenshotUrl
+    );
+    let attachedImages: ImageItem[] | undefined;
+    if (visualInspectResult?.data?.screenshotUrl) {
+      attachedImages = [parseImageDataUrl(visualInspectResult.data.screenshotUrl, 'image/jpeg')];
+    }
+
     const actionSummary = executedResults
       .map((r) => {
         if (r.action === 'searchWeb') {
           return `- [searchWeb (${r.target || 'query'})]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
+        }
+        if (r.action === 'visualInspect') {
+          return `- [visualInspect]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
         }
         return `- [${r.action}]: ${r.success ? 'SUCCESS' : 'FAILED'} (${r.message})`;
       })
@@ -1292,11 +1326,16 @@ ${BASE_CAPABILITIES_PROMPT}`;
 
     const nextObservationPrompt = isContinuousGoal
       ? `[Observation / Results from Step ${currentStep}]:\n${actionSummary}\n\nThe user requested a continuous Q&A session with ChatGPT UNTIL THEY CLICK STOP. ChatGPT has completed its answer on the active page. Please inspect the updated page context to read ChatGPT's latest reply, formulate your next insightful follow-up question based on it, and immediately emit an action block to send it:\n\`\`\`action\n[\n  { "action": "fill", "selector": "#prompt-textarea", "value": "Your next follow-up question...", "submit": true }\n]\n\`\`\`\nKeep the continuous Q&A cycle active without stopping!`
-      : `[Observation / Results from Step ${currentStep}]:\n${actionSummary}\n\nThe browser tab has executed the action(s). Please inspect the updated page context and proceed autonomously to complete the user's request: "${prompt}". When finished (e.g. video is playing or goal achieved), summarize your actions without emitting further action blocks.`;
+      : `[Observation / Results from Step ${currentStep}]:\n${actionSummary}\n\nThe browser tab has executed the action(s). ${
+          attachedImages
+            ? 'A visual Set-of-Marks screenshot has been attached showing numbered element badges ([1], [2], [3]...). You can directly call `clickTag(tag)` or `fillTag(tag, value)` to interact with elements by number!'
+            : `Please inspect the updated page context and proceed autonomously to complete the user's request: "${prompt}".`
+        } When finished (e.g. video is playing or goal achieved), summarize your actions without emitting further action blocks.`;
 
     contextMessages.push({
       role: 'user',
       content: nextObservationPrompt,
+      images: attachedImages,
     });
 
     currentStep++;
