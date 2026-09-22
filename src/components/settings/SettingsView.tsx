@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, Key, Sparkles, Server, Check, ShieldCheck, Eye, EyeOff,
   Cpu, Wifi, AlertCircle, LoaderCircle, BrainCircuit, Database, Trash2,
-  FileCode, RotateCcw, ExternalLink, Zap, Scissors, Sliders
+  FileCode, RotateCcw, ExternalLink, Zap, Scissors, Sliders, Globe
 } from 'lucide-react';
 import { useAppStore, STORAGE_KEYS } from '../../stores/useAppStore';
 import { getAllDomainMemories, clearDomainMemories } from '../../services/db';
@@ -160,6 +160,11 @@ export const SettingsView: React.FC = () => {
   const [enableRtk, setEnableRtk] = useState(true);
   const [enablePonytail, setEnablePonytail] = useState(true);
 
+  // Web Search Engine state
+  const [webSearchProvider, setWebSearchProvider] = useState('auto');
+  const [braveApiKey, setBraveApiKey] = useState('');
+  const [tavilyApiKey, setTavilyApiKey] = useState('');
+
   const loadMemories = async () => {
     try {
       const records = await getAllDomainMemories();
@@ -183,6 +188,14 @@ export const SettingsView: React.FC = () => {
       }
     };
     loadSoulAndOptimizations();
+
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get(['webSearchProvider', 'braveApiKey', 'tavilyApiKey'], (res) => {
+        if (res.webSearchProvider) setWebSearchProvider(res.webSearchProvider);
+        if (res.braveApiKey) setBraveApiKey(res.braveApiKey);
+        if (res.tavilyApiKey) setTavilyApiKey(res.tavilyApiKey);
+      });
+    }
   }, []);
 
   const handleClearMemories = async () => {
@@ -344,6 +357,9 @@ export const SettingsView: React.FC = () => {
       updates['customBaseUrl'] = baseUrl.trim();
       updates['custom_baseUrl'] = baseUrl.trim();
     }
+    updates['webSearchProvider'] = webSearchProvider;
+    updates['braveApiKey'] = braveApiKey.trim();
+    updates['tavilyApiKey'] = tavilyApiKey.trim();
     await chrome.storage.local.set(updates);
 
     setProviderDrafts((prev) => ({
@@ -876,6 +892,75 @@ export const SettingsView: React.FC = () => {
                 />
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Fast Web Search Engine */}
+        <div className="p-3.5 rounded-xl border border-border bg-card/60 space-y-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
+              <Globe className="size-4 text-primary" />
+              <span>Fast Web Search Engine</span>
+            </div>
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-500 font-medium">
+              Zero-Config Active
+            </span>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Powers the <code className="font-mono text-primary">searchWeb</code> action block. Searches the live web in ~300ms without opening or cluttering browser tabs. Uses DuckDuckGo by default (free, no API key required).
+          </p>
+
+          <div className="space-y-2">
+            <div className="space-y-1.5">
+              <label className="text-[11px] text-muted-foreground font-medium">Search Provider</label>
+              <select
+                value={webSearchProvider}
+                onChange={(e) => setWebSearchProvider(e.target.value)}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              >
+                <option value="auto">Auto (DuckDuckGo or configured API key)</option>
+                <option value="duckduckgo">DuckDuckGo (Free, Zero-Config)</option>
+                <option value="brave">Brave Search API (Requires API Key)</option>
+                <option value="tavily">Tavily AI Search (Requires API Key)</option>
+              </select>
+            </div>
+
+            {(webSearchProvider === 'brave' || webSearchProvider === 'auto') && (
+              <div className="space-y-1.5 pt-1">
+                <label className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+                  <span>Brave Search API Key (Optional)</span>
+                  <a href="https://brave.com/search/api/" target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                    Get Key <ExternalLink className="size-2.5" />
+                  </a>
+                </label>
+                <input
+                  type="password"
+                  value={braveApiKey}
+                  onChange={(e) => setBraveApiKey(e.target.value)}
+                  placeholder="BSA..."
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+            )}
+
+            {(webSearchProvider === 'tavily' || webSearchProvider === 'auto') && (
+              <div className="space-y-1.5 pt-1">
+                <label className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+                  <span>Tavily API Key (Optional)</span>
+                  <a href="https://tavily.com" target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                    Get Key <ExternalLink className="size-2.5" />
+                  </a>
+                </label>
+                <input
+                  type="password"
+                  value={tavilyApiKey}
+                  onChange={(e) => setTavilyApiKey(e.target.value)}
+                  placeholder="tvly-..."
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+            )}
           </div>
         </div>
 

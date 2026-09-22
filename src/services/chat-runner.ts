@@ -47,6 +47,17 @@ Whenever the user asks you to perform an action (such as opening a website, brow
 ]
 \`\`\`
 
+2b. FAST WEB SEARCH (INSTANT BACKGROUND RESEARCH WITHOUT OPENING TABS):
+When asked to search the web, search Google, look up facts, find current information, compare products, or find references:
+- PREFER the \`searchWeb\` action block instead of navigating to Google or opening search tabs!
+- \`searchWeb\` searches instantly in the background (~300ms) and returns clean titles, URLs, and snippets:
+\`\`\`action
+[
+  { "action": "searchWeb", "query": "rekomendasi framework react 2026" }
+]
+\`\`\`
+- In the next step observation, you will receive the top results with URLs. You can answer the user directly with cited links, or only call \`openTab\` for a specific URL if deep page reading is required.
+
 3. CLICK AN ELEMENT OR LINK:
 \`\`\`action
 [
@@ -788,7 +799,9 @@ async function parseAndExecuteActions(
       act.action === 'generatePptx' ||
       act.action === 'generateDoc' ||
       act.action === 'generateDocs' ||
-      (act as any).action === 'createDoc';
+      (act as any).action === 'createDoc' ||
+      act.action === 'searchWeb' ||
+      (act as any).action === 'webSearch';
     const isNavAction = act.action === 'navigate' || act.action === 'openTab' || (act as any).action === 'newTab';
     const isTabAction = act.action === 'switchTab' || act.action === 'closeTab';
     const isToolAction = act.action === 'runTool';
@@ -801,7 +814,9 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'runTool'
+      act.action === 'searchWeb' || (act as any).action === 'webSearch'
+        ? 'searchWeb'
+        : act.action === 'runTool'
         ? 'runTool'
         : act.action === 'switchTab'
         ? 'switchTab'
@@ -1267,8 +1282,13 @@ ${BASE_CAPABILITIES_PROMPT}`;
     });
 
     const actionSummary = executedResults
-      .map((r) => `- [${r.action}]: ${r.success ? 'SUCCESS' : 'FAILED'} (${r.message})`)
-      .join('\n');
+      .map((r) => {
+        if (r.action === 'searchWeb') {
+          return `- [searchWeb (${r.target || 'query'})]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
+        }
+        return `- [${r.action}]: ${r.success ? 'SUCCESS' : 'FAILED'} (${r.message})`;
+      })
+      .join('\n\n');
 
     const nextObservationPrompt = isContinuousGoal
       ? `[Observation / Results from Step ${currentStep}]:\n${actionSummary}\n\nThe user requested a continuous Q&A session with ChatGPT UNTIL THEY CLICK STOP. ChatGPT has completed its answer on the active page. Please inspect the updated page context to read ChatGPT's latest reply, formulate your next insightful follow-up question based on it, and immediately emit an action block to send it:\n\`\`\`action\n[\n  { "action": "fill", "selector": "#prompt-textarea", "value": "Your next follow-up question...", "submit": true }\n]\n\`\`\`\nKeep the continuous Q&A cycle active without stopping!`

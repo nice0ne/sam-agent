@@ -16,6 +16,7 @@ import { saveVfsFile } from './vfs';
 import { switchToTab, closeBrowserTab, isRestrictedTabUrl } from './tab-manager';
 import { executeUserTool } from './tool-registry';
 import { createDocArtifact } from './doc-generator';
+import { executeWebSearch, formatWebSearchResults } from './web-search';
 
 export interface FillFieldAction {
   action: 'fill';
@@ -118,6 +119,13 @@ export interface GenerateDocAction {
   [key: string]: any;
 }
 
+export interface SearchWebAction {
+  action: 'searchWeb' | 'webSearch';
+  query: string;
+  maxResults?: number;
+  [key: string]: any;
+}
+
 export type BrowserAction =
   | FillFieldAction
   | ClickAction
@@ -132,7 +140,8 @@ export type BrowserAction =
   | PlayAction
   | RunToolAction
   | GeneratePptxAction
-  | GenerateDocAction;
+  | GenerateDocAction
+  | SearchWebAction;
 
 export interface ActionResult {
   success: boolean;
@@ -1299,6 +1308,34 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
         success: false,
         action: 'generateDoc',
         message: `Gagal membuat dokumen Word: ${err.message}`,
+        error: err.message,
+      };
+    }
+  }
+
+  // 4c. Tabless action: Fast Web Search
+  if (action.action === 'searchWeb' || (action as any).action === 'webSearch') {
+    try {
+      const act = action as SearchWebAction;
+      const query = act.query || (act as any).q || (act as any).search || '';
+      const maxResults = act.maxResults || 6;
+
+      const searchResponse = await executeWebSearch(query, maxResults);
+      const formattedMarkdown = formatWebSearchResults(searchResponse);
+
+      return {
+        success: !searchResponse.error || searchResponse.results.length > 0,
+        action: 'searchWeb',
+        target: query,
+        message: formattedMarkdown,
+        data: searchResponse,
+        verified: true,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        action: 'searchWeb',
+        message: `Pencarian web gagal: ${err.message}`,
         error: err.message,
       };
     }

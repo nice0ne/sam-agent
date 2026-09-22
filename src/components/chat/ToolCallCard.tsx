@@ -46,6 +46,7 @@ const TOOL_METADATA: Record<
   bash: { label: 'Ran command', activeLabel: 'Running command', icon: Terminal },
   readFile: { label: 'Read file', activeLabel: 'Reading file', icon: FileText },
   writeFile: { label: 'Wrote file', activeLabel: 'Writing file', icon: FileText },
+  searchWeb: { label: 'Searched web', activeLabel: 'Searching web', icon: Globe },
   webSearch: { label: 'Searched web', activeLabel: 'Searching web', icon: Globe },
   read_image: { label: 'Analyzed image', activeLabel: 'Analyzing image', icon: ImageIcon },
   fillField: { label: 'Filled form field', activeLabel: 'Filling form field', icon: Edit3 },
