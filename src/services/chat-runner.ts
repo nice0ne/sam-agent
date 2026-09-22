@@ -122,6 +122,30 @@ Or type into an input tag:
 \`\`\`
 - The visual badges disappear immediately after screenshot capture (Ghost Overlay), so the user's screen remains clean.
 
+6c. DETERMINISTIC POST-ACTION ASSERTIONS & SELF-HEALING (OPTIONAL):
+All actions (\`click\`, \`fill\`, \`clickTag\`, \`fillTag\`, \`press_key\`) automatically verify success, detect validation alerts, and self-heal against blocking overlays/dialogs.
+To deterministically enforce that a specific UI condition is met before marking an action successful, you may optionally include an \`assert\` block:
+\`\`\`action
+[
+  {
+    "action": "click",
+    "selector": "button#submit",
+    "assert": {
+      "urlChanged": true,
+      "elementAppeared": ".success-message",
+      "timeoutMs": 1000
+    }
+  }
+]
+\`\`\`
+- Available assertion options:
+  - \`"urlChanged": true\`: Confirms the page URL changed after the action.
+  - \`"urlMatches": "checkout|order|dashboard"\`: Regex or substring to match the new URL.
+  - \`"elementAppeared": ".modal, .toast, .results"\`: Verifies an element appeared in DOM.
+  - \`"elementDisappeared": ".spinner, #login-modal"\`: Verifies an element was removed/hidden.
+  - \`"textAppeared": "Berhasil"\`: Verifies text exists in page body.
+- If an assertion fails or an error message banner appears on the page, your observation will report it immediately so you can self-correct!
+
 7. MULTI-TAB ORCHESTRATION:
 You can view all open browser tabs in the context below. To switch tabs, open tabs, or close tabs:
 - Switch to another open tab by ID:

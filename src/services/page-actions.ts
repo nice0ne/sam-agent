@@ -18,6 +18,15 @@ import { executeUserTool } from './tool-registry';
 import { createDocArtifact } from './doc-generator';
 import { executeWebSearch, formatWebSearchResults } from './web-search';
 
+export interface ActionAssertion {
+  urlMatches?: string;
+  urlChanged?: boolean;
+  elementAppeared?: string;
+  elementDisappeared?: string;
+  textAppeared?: string;
+  timeoutMs?: number;
+}
+
 export interface FillFieldAction {
   action: 'fill';
   selector?: string;
@@ -25,18 +34,21 @@ export interface FillFieldAction {
   label?: string;
   value: string;
   submit?: boolean;
+  assert?: ActionAssertion;
 }
 
 export interface ClickAction {
   action: 'click';
   selector?: string;
   text?: string;
+  assert?: ActionAssertion;
 }
 
 export interface SelectOptionAction {
   action: 'select';
   selector: string;
   value: string;
+  assert?: ActionAssertion;
 }
 
 export interface EvalAction {
@@ -48,6 +60,7 @@ export interface PressKeyAction {
   action: 'press_key' | 'pressKey' | 'key';
   key?: string;
   selector?: string;
+  assert?: ActionAssertion;
 }
 
 export interface NavigateAction {
@@ -129,6 +142,7 @@ export interface SearchWebAction {
 export interface ClickTagAction {
   action: 'clickTag';
   tag: number;
+  assert?: ActionAssertion;
   [key: string]: any;
 }
 
@@ -137,6 +151,7 @@ export interface FillTagAction {
   tag: number;
   value: string;
   submit?: boolean;
+  assert?: ActionAssertion;
   [key: string]: any;
 }
 
@@ -180,6 +195,15 @@ export interface ActionResult {
   strategyUsed?: string;
   verifiedSelector?: string;
   editorType?: string;
+  stateChange?: {
+    urlChanged?: boolean;
+    newUrl?: string;
+    modalOpened?: string;
+    errorAlertDetected?: string;
+    validationFailed?: string;
+    loadingInProgress?: boolean;
+  };
+  assertionPassed?: boolean;
 }
 
 export interface TaggedElementSummary {
@@ -448,6 +472,152 @@ async function inPageActionRunner(actionPayload: BrowserAction): Promise<ActionR
 
     return false;
   }
+
+  const initialUrl = window.location.href;
+
+  // Helper to dismiss blocking overlays (cookie modals, dialog backdrops, popups)
+  const tryDismissBlockingOverlays = (): boolean => {
+    const dismissSelectors = [
+      'button[aria-label*="close" i]',
+      'button[aria-label*="tutup" i]',
+      'button[aria-label*="dismiss" i]',
+      '.modal button.close',
+      '.modal-header .btn-close',
+      '[data-dismiss="modal"]',
+      '[data-bs-dismiss="modal"]',
+      'button:has(svg.lucide-x)',
+      '#onetrust-accept-btn-handler',
+      '#accept-cookies',
+      '.cookie-banner button',
+      'button[data-testid="close-button"]',
+    ];
+    for (const sel of dismissSelectors) {
+      try {
+        const btn = document.querySelector<HTMLElement>(sel);
+        if (btn && btn.offsetParent !== null) {
+          btn.click();
+          return true;
+        }
+      } catch (_) {}
+    }
+    return false;
+  };
+
+  // Helper to detect post-action validation errors, alerts, modals, or loading spinners
+  const detectPageAlerts = (): { errorText?: string; modalOpened?: string; loadingInProgress?: boolean } => {
+    // 1. Look for error banners, validation alerts, toast notifications
+    const alertSelectors = [
+      '[role="alert"]',
+      '.alert-danger',
+      '.alert-warning',
+      '.invalid-feedback:not(:empty)',
+      '.error-message:not(:empty)',
+      '.text-red-500:not(:empty)',
+      '.toast-error',
+    ];
+    for (const sel of alertSelectors) {
+      try {
+        const el = document.querySelector<HTMLElement>(sel);
+        if (el && el.offsetParent !== null) {
+          const txt = (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ');
+          if (txt && txt.length > 2 && !txt.includes('Sam-Agent') && !txt.includes('sam-som-tag-badge')) {
+            return { errorText: txt.slice(0, 150) };
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Check if a modal or dialog just opened
+    const modal = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"], .modal.show, dialog[open]');
+    if (modal && modal.offsetParent !== null) {
+      const title = modal.querySelector('h1, h2, h3, h4, .modal-title')?.textContent?.trim() || 'Dialog/Modal';
+      return { modalOpened: title.slice(0, 50) };
+    }
+
+    // 3. Check if loading spinner / busy state is active
+    const spinner = document.querySelector<HTMLElement>('[aria-busy="true"], .spinner-border, .loading-spinner, .lucide-loader-circle, .lucide-loader');
+    if (spinner && spinner.offsetParent !== null) {
+      return { loadingInProgress: true };
+    }
+
+    return {};
+  };
+
+  // Helper to evaluate deterministic assertions
+  const verifyAssertion = async (
+    assertion?: ActionAssertion,
+    startUrl?: string
+  ): Promise<{ passed: boolean; message?: string }> => {
+    if (!assertion) return { passed: true };
+
+    const timeout = assertion.timeoutMs || 800;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime <= timeout) {
+      let conditionMet = true;
+
+      if (assertion.urlChanged && startUrl) {
+        if (window.location.href === startUrl) {
+          conditionMet = false;
+        }
+      }
+
+      if (assertion.urlMatches) {
+        const regex = new RegExp(assertion.urlMatches, 'i');
+        if (!regex.test(window.location.href)) {
+          conditionMet = false;
+        }
+      }
+
+      if (assertion.elementAppeared) {
+        const el = document.querySelector(assertion.elementAppeared);
+        if (!el || (el instanceof HTMLElement && el.offsetParent === null)) {
+          conditionMet = false;
+        }
+      }
+
+      if (assertion.elementDisappeared) {
+        const el = document.querySelector(assertion.elementDisappeared);
+        if (el && (el as HTMLElement).offsetParent !== null) {
+          conditionMet = false;
+        }
+      }
+
+      if (assertion.textAppeared) {
+        if (!document.body.innerText.includes(assertion.textAppeared)) {
+          conditionMet = false;
+        }
+      }
+
+      if (conditionMet) {
+        return { passed: true, message: 'Assertion condition successfully met' };
+      }
+
+      await sleep(50);
+    }
+
+    const failedReasons: string[] = [];
+    if (assertion.urlChanged && window.location.href === startUrl) {
+      failedReasons.push(`URL did not change from "${startUrl}"`);
+    }
+    if (assertion.urlMatches && !new RegExp(assertion.urlMatches, 'i').test(window.location.href)) {
+      failedReasons.push(`URL "${window.location.href}" did not match pattern "${assertion.urlMatches}"`);
+    }
+    if (assertion.elementAppeared && !document.querySelector(assertion.elementAppeared)) {
+      failedReasons.push(`Element "${assertion.elementAppeared}" did not appear in DOM`);
+    }
+    if (assertion.elementDisappeared && document.querySelector(assertion.elementDisappeared)) {
+      failedReasons.push(`Element "${assertion.elementDisappeared}" is still visible in DOM`);
+    }
+    if (assertion.textAppeared && !document.body.innerText.includes(assertion.textAppeared)) {
+      failedReasons.push(`Text "${assertion.textAppeared}" not found in page body`);
+    }
+
+    return {
+      passed: false,
+      message: `Assertion failed within ${timeout}ms: ${failedReasons.join('; ')}`,
+    };
+  };
 
   try {
     if (actionPayload.action === 'fill') {
@@ -869,7 +1039,28 @@ async function inPageActionRunner(actionPayload: BrowserAction): Promise<ActionR
         await triggerSendButton(target);
       }
 
-      const targetDesc = canonicalSelector || label || name || target.id || target.tagName.toLowerCase();
+      // Post-action verification & assertion
+      await sleep(100);
+      const postAlerts = detectPageAlerts();
+      const assertionCheck = await verifyAssertion(actionPayload.assert, initialUrl);
+      const currentUrl = window.location.href;
+      const urlChanged = currentUrl !== initialUrl;
+
+      let extraNotes = '';
+      if (postAlerts.errorText) {
+        extraNotes += ` ⚠️ Warning: Alert/Error detected: "${postAlerts.errorText}".`;
+      }
+      if (postAlerts.modalOpened) {
+        extraNotes += ` ℹ️ Modal opened: "${postAlerts.modalOpened}".`;
+      }
+      if (urlChanged) {
+        extraNotes += ` 🌐 URL changed to: ${currentUrl}.`;
+      }
+      if (actionPayload.assert) {
+        extraNotes += assertionCheck.passed ? ' [Assertion Passed]' : ` [⚠️ ${assertionCheck.message}]`;
+      }
+
+      const targetDesc = canonicalSelector || label || name || target?.id || target?.tagName.toLowerCase() || 'field';
       const statusNote = verified
         ? selfCorrected
           ? '✓ Verified (Auto-Corrected)'
@@ -877,16 +1068,24 @@ async function inPageActionRunner(actionPayload: BrowserAction): Promise<ActionR
         : '⚠️ Value set (Unverified in DOM)';
 
       return {
-        success: true,
+        success: assertionCheck.passed,
         action: 'fill',
         target: targetDesc,
-        message: `Filled "${targetDesc}" with ${handledWYSIWYG ? '[WYSIWYG Rich Text]: ' : ''}"${value.slice(0, 50)}${value.length > 50 ? '...' : ''}" [${statusNote}]`,
-        verified,
+        message: `Filled "${targetDesc}" with ${handledWYSIWYG ? '[WYSIWYG Rich Text]: ' : ''}"${value.slice(0, 50)}${value.length > 50 ? '...' : ''}" [${statusNote}]${extraNotes}`,
+        verified: verified && assertionCheck.passed,
         attempts,
         selfCorrected,
         strategyUsed,
         verifiedSelector: canonicalSelector,
         editorType,
+        stateChange: {
+          urlChanged,
+          newUrl: urlChanged ? currentUrl : undefined,
+          modalOpened: postAlerts.modalOpened,
+          errorAlertDetected: postAlerts.errorText,
+          loadingInProgress: postAlerts.loadingInProgress,
+        },
+        assertionPassed: assertionCheck.passed,
       };
     }
 
@@ -1027,6 +1226,25 @@ async function inPageActionRunner(actionPayload: BrowserAction): Promise<ActionR
       let selfCorrected = false;
       let strategyUsed = 'Native Click';
 
+      // 1. Obscured / Backdrop check & Self-Healing
+      try {
+        const rect = target.getBoundingClientRect();
+        const cx = Math.max(0, Math.min(window.innerWidth - 1, rect.left + rect.width / 2));
+        const cy = Math.max(0, Math.min(window.innerHeight - 1, rect.top + rect.height / 2));
+        const topEl = document.elementFromPoint(cx, cy);
+        if (topEl && !target.contains(topEl) && !topEl.contains(target)) {
+          // Element is blocked by an overlay/popup!
+          const dismissed = tryDismissBlockingOverlays();
+          if (dismissed) {
+            await sleep(150);
+            selfCorrected = true;
+            strategyUsed = 'Dismissed Blocking Overlay';
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await sleep(100);
+          }
+        }
+      } catch (_) {}
+
       // If radio or checkbox
       if (target instanceof HTMLInputElement && (target.type === 'radio' || target.type === 'checkbox')) {
         target.checked = true;
@@ -1053,20 +1271,51 @@ async function inPageActionRunner(actionPayload: BrowserAction): Promise<ActionR
       } else {
         target.focus();
         target.click();
+        target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+        target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
         verified = true;
+      }
+
+      // Post-action verification & assertion
+      await sleep(120);
+      const postAlerts = detectPageAlerts();
+      const assertionCheck = await verifyAssertion(actionPayload.assert, initialUrl);
+      const currentUrl = window.location.href;
+      const urlChanged = currentUrl !== initialUrl;
+
+      let extraNotes = '';
+      if (postAlerts.errorText) {
+        extraNotes += ` ⚠️ Warning: Alert/Error appeared: "${postAlerts.errorText}".`;
+      }
+      if (postAlerts.modalOpened) {
+        extraNotes += ` ℹ️ Dialog opened: "${postAlerts.modalOpened}".`;
+      }
+      if (urlChanged) {
+        extraNotes += ` 🌐 URL changed to: ${currentUrl}.`;
+      }
+      if (actionPayload.assert) {
+        extraNotes += assertionCheck.passed ? ' [Assertion Passed]' : ` [⚠️ ${assertionCheck.message}]`;
       }
 
       const targetDesc = canonicalSelector || text || target.tagName.toLowerCase();
       return {
-        success: true,
+        success: assertionCheck.passed,
         action: 'click',
         target: targetDesc,
-        message: `Clicked element: ${targetDesc} [${verified ? (selfCorrected ? '✓ Verified (Auto-Corrected)' : '✓ Verified') : 'Action Dispatched'}]`,
-        verified,
+        message: `Clicked element: ${targetDesc} [${verified ? (selfCorrected ? '✓ Verified (Auto-Corrected)' : '✓ Verified') : 'Action Dispatched'}]${extraNotes}`,
+        verified: verified && assertionCheck.passed,
         attempts,
         selfCorrected,
         strategyUsed,
         verifiedSelector: canonicalSelector,
+        stateChange: {
+          urlChanged,
+          newUrl: urlChanged ? currentUrl : undefined,
+          modalOpened: postAlerts.modalOpened,
+          errorAlertDetected: postAlerts.errorText,
+          loadingInProgress: postAlerts.loadingInProgress,
+        },
+        assertionPassed: assertionCheck.passed,
       };
     }
 
@@ -1099,12 +1348,42 @@ async function inPageActionRunner(actionPayload: BrowserAction): Promise<ActionR
       target.click();
 
       const desc = target.innerText?.slice(0, 30).trim() || target.tagName.toLowerCase();
+
+      // Post-action verification & assertion
+      await sleep(120);
+      const postAlerts = detectPageAlerts();
+      const assertionCheck = await verifyAssertion(actionPayload.assert, initialUrl);
+      const currentUrl = window.location.href;
+      const urlChanged = currentUrl !== initialUrl;
+
+      let extraNotes = '';
+      if (postAlerts.errorText) {
+        extraNotes += ` ⚠️ Warning: Alert/Error appeared: "${postAlerts.errorText}".`;
+      }
+      if (postAlerts.modalOpened) {
+        extraNotes += ` ℹ️ Dialog opened: "${postAlerts.modalOpened}".`;
+      }
+      if (urlChanged) {
+        extraNotes += ` 🌐 URL changed to: ${currentUrl}.`;
+      }
+      if (actionPayload.assert) {
+        extraNotes += assertionCheck.passed ? ' [Assertion Passed]' : ` [⚠️ ${assertionCheck.message}]`;
+      }
+
       return {
-        success: true,
+        success: assertionCheck.passed,
         action: 'clickTag',
         target: `[Tag #${tag}] (${desc})`,
-        message: `Berhasil mengklik elemen visual tag #${tag} (${desc}).`,
-        verified: true,
+        message: `Berhasil mengklik elemen visual tag #${tag} (${desc}).${extraNotes}`,
+        verified: assertionCheck.passed,
+        stateChange: {
+          urlChanged,
+          newUrl: urlChanged ? currentUrl : undefined,
+          modalOpened: postAlerts.modalOpened,
+          errorAlertDetected: postAlerts.errorText,
+          loadingInProgress: postAlerts.loadingInProgress,
+        },
+        assertionPassed: assertionCheck.passed,
       };
     }
 
@@ -1138,12 +1417,48 @@ async function inPageActionRunner(actionPayload: BrowserAction): Promise<ActionR
       target.dispatchEvent(new Event('input', { bubbles: true }));
       target.dispatchEvent(new Event('change', { bubbles: true }));
 
+      if (actionPayload.submit) {
+        await sleep(150);
+        target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+        target.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+        await triggerSendButton(target);
+      }
+
+      // Post-action verification & assertion
+      await sleep(100);
+      const postAlerts = detectPageAlerts();
+      const assertionCheck = await verifyAssertion(actionPayload.assert, initialUrl);
+      const currentUrl = window.location.href;
+      const urlChanged = currentUrl !== initialUrl;
+
+      let extraNotes = '';
+      if (postAlerts.errorText) {
+        extraNotes += ` ⚠️ Warning: Alert/Error detected: "${postAlerts.errorText}".`;
+      }
+      if (postAlerts.modalOpened) {
+        extraNotes += ` ℹ️ Modal opened: "${postAlerts.modalOpened}".`;
+      }
+      if (urlChanged) {
+        extraNotes += ` 🌐 URL changed to: ${currentUrl}.`;
+      }
+      if (actionPayload.assert) {
+        extraNotes += assertionCheck.passed ? ' [Assertion Passed]' : ` [⚠️ ${assertionCheck.message}]`;
+      }
+
       return {
-        success: true,
+        success: assertionCheck.passed,
         action: 'fillTag',
         target: `[Tag #${tag}]`,
-        message: `Berhasil mengisi visual input tag #${tag} dengan: "${value}".`,
-        verified: true,
+        message: `Berhasil mengisi visual input tag #${tag} dengan: "${value}".${extraNotes}`,
+        verified: assertionCheck.passed,
+        stateChange: {
+          urlChanged,
+          newUrl: urlChanged ? currentUrl : undefined,
+          modalOpened: postAlerts.modalOpened,
+          errorAlertDetected: postAlerts.errorText,
+          loadingInProgress: postAlerts.loadingInProgress,
+        },
+        assertionPassed: assertionCheck.passed,
       };
     }
 
@@ -1275,12 +1590,41 @@ async function inPageActionRunner(actionPayload: BrowserAction): Promise<ActionR
         await triggerSendButton(target);
       }
 
+      // Post-action verification & assertion
+      await sleep(120);
+      const postAlerts = detectPageAlerts();
+      const assertionCheck = await verifyAssertion((actionPayload as any).assert, initialUrl);
+      const currentUrl = window.location.href;
+      const urlChanged = currentUrl !== initialUrl;
+
+      let extraNotes = '';
+      if (postAlerts.errorText) {
+        extraNotes += ` ⚠️ Warning: Alert/Error appeared: "${postAlerts.errorText}".`;
+      }
+      if (postAlerts.modalOpened) {
+        extraNotes += ` ℹ️ Dialog opened: "${postAlerts.modalOpened}".`;
+      }
+      if (urlChanged) {
+        extraNotes += ` 🌐 URL changed to: ${currentUrl}.`;
+      }
+      if ((actionPayload as any).assert) {
+        extraNotes += assertionCheck.passed ? ' [Assertion Passed]' : ` [⚠️ ${assertionCheck.message}]`;
+      }
+
       return {
-        success: true,
+        success: assertionCheck.passed,
         action: 'press_key',
         target: selector || target.tagName.toLowerCase(),
-        message: `Dispatched key "${key}" to ${selector || target.tagName.toLowerCase()} [✓ Verified]`,
-        verified: true,
+        message: `Dispatched key "${key}" to ${selector || target.tagName.toLowerCase()} [✓ Verified]${extraNotes}`,
+        verified: assertionCheck.passed,
+        stateChange: {
+          urlChanged,
+          newUrl: urlChanged ? currentUrl : undefined,
+          modalOpened: postAlerts.modalOpened,
+          errorAlertDetected: postAlerts.errorText,
+          loadingInProgress: postAlerts.loadingInProgress,
+        },
+        assertionPassed: assertionCheck.passed,
       };
     }
 
