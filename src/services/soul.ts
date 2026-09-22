@@ -100,9 +100,16 @@ export async function saveOptimizationSettings(settings: Partial<OptimizationSet
   await chrome.storage.local.set(updates);
 }
 
+export interface ImageItem {
+  data: string;
+  mimeType: string;
+  url?: string;
+}
+
 export interface MessageItem {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  images?: ImageItem[];
 }
 
 /**
@@ -140,7 +147,12 @@ export function applyRtkPruning(messages: MessageItem[]): MessageItem[] {
       content = `${summaryHeader}\n[RTK: Step outcome archived]`;
     }
 
-    return { ...m, content };
+    // For turns older than the last 2 turns, prune images to avoid token bloat
+    return {
+      role: m.role,
+      content,
+      images: undefined,
+    };
   });
 }
 

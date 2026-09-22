@@ -4,9 +4,28 @@ import { saveVfsFile } from './vfs';
 import { STORAGE_KEYS } from '../stores/useAppStore';
 import { getActivePageContext, formatPageContextPrompt, PageContext } from './page-reader';
 import { executePageAction, BrowserAction, ActionResult } from './page-actions';
-import { getAgentSoul, getOptimizationSettings, applyRtkPruning, applyPonytailCompression, MessageItem } from './soul';
+import { getAgentSoul, getOptimizationSettings, applyRtkPruning, applyPonytailCompression, MessageItem, ImageItem } from './soul';
 import { getOpenTabs, formatOpenTabsPrompt } from './tab-manager';
 import { listUserTools, formatUserToolsPrompt } from './tool-registry';
+
+/**
+ * Safely parse a base64 Data URL or raw base64 string into components for Multimodal Vision APIs.
+ */
+export function parseImageDataUrl(dataUrlOrBase64: string, fallbackMime = 'image/png'): ImageItem {
+  const match = dataUrlOrBase64.match(/^data:([^;]+);base64,(.+)$/s);
+  if (match) {
+    return {
+      mimeType: match[1],
+      data: match[2].trim(),
+      url: dataUrlOrBase64,
+    };
+  }
+  return {
+    mimeType: fallbackMime,
+    data: dataUrlOrBase64.trim(),
+    url: `data:${fallbackMime};base64,${dataUrlOrBase64.trim()}`,
+  };
+}
 
 const BASE_CAPABILITIES_PROMPT = `
 You have the power to control browser tabs, navigate websites, inspect content, fill forms, click buttons, play videos, and save files to the Virtual File System (VFS).
@@ -249,6 +268,11 @@ When asked to create a presentation or slide deck:
 - Available layouts: \`"title"\`, \`"content"\`, \`"two-column"\`, \`"stat"\`, \`"conclusion"\`.
 - Executing \`generatePptx\` automatically compiles a native \`.pptx\` file into \`/workspace/<title>.pptx\` (downloadable) and launches an interactive live slide presentation viewer in Chrome!
 
+12. MULTIMODAL VISION & IMAGE UNDERSTANDING:
+You possess native visual and image recognition capabilities! When the user attaches, uploads, or pastes an image (diagrams, receipts, invoices, screenshots, error logs, charts, photos, UI designs, or handwritten notes):
+- You can inspect, read, and analyze the image directly.
+- Perform optical character recognition (OCR), extract text and data tables, identify issues or error banners in screenshots, assess UI mockups, and answer questions about visual content with high accuracy and helpfulness.
+
 ### AUTONOMOUS MULTI-STEP EXECUTION:
 You operate in an autonomous execution loop! When you emit an action block, your action is executed immediately in the browser, the page state updates, and you will automatically receive an observation with the new page content and links in the next turn.
 Therefore:
@@ -352,7 +376,7 @@ async function streamFromProvider(
   model: string,
   storageData: Record<string, any>,
   systemPrompt: string,
-  contextMessages: Array<{ role: string; content: string }>,
+  contextMessages: MessageItem[],
   onUpdateText: (accumulated: string) => Promise<void>,
   signal?: AbortSignal
 ): Promise<string> {
@@ -366,10 +390,26 @@ async function streamFromProvider(
     const baseUrl = (storageData[`${provider}_baseUrl`] || 'https://generativelanguage.googleapis.com').replace(/\/+$/, '');
     const endpoint = `${baseUrl}/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey.trim()}`;
 
-    const contents = contextMessages.map((m) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }));
+    const contents = contextMessages.map((m) => {
+      const parts: any[] = [];
+      if (m.content) {
+        parts.push({ text: m.content });
+      }
+      if (m.images && m.images.length > 0) {
+        for (const img of m.images) {
+          parts.push({
+            inline_data: {
+              mime_type: img.mimeType || 'image/png',
+              data: img.data,
+            },
+          });
+        }
+      }
+      return {
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: parts.length > 0 ? parts : [{ text: '' }],
+      };
+    });
 
     const bodyPayload: any = { contents };
     if (systemPrompt) {
@@ -424,7 +464,37 @@ async function streamFromProvider(
     const baseUrl = (storageData[`${provider}_baseUrl`] || 'https://api.anthropic.com').replace(/\/+$/, '');
     const endpoint = `${baseUrl}/v1/messages`;
 
-    const msgs = contextMessages.filter((m) => m.role === 'user' || m.role === 'assistant');
+    const msgs = contextMessages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => {
+        if (m.images && m.images.length > 0) {
+          const contentBlocks: any[] = [];
+          for (const img of m.images) {
+            contentBlocks.push({
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: img.mimeType || 'image/png',
+                data: img.data,
+              },
+            });
+          }
+          if (m.content) {
+            contentBlocks.push({
+              type: 'text',
+              text: m.content,
+            });
+          }
+          return {
+            role: m.role,
+            content: contentBlocks,
+          };
+        }
+        return {
+          role: m.role,
+          content: m.content,
+        };
+      });
 
     const bodyPayload: any = {
       model,
@@ -517,9 +587,34 @@ async function streamFromProvider(
       headers['Authorization'] = `Bearer ${apiKey.trim()}`;
     }
 
+    const formattedMessages = contextMessages.map((m) => {
+      if (m.images && m.images.length > 0) {
+        const contentParts: any[] = [];
+        if (m.content) {
+          contentParts.push({ type: 'text', text: m.content });
+        }
+        for (const img of m.images) {
+          contentParts.push({
+            type: 'image_url',
+            image_url: {
+              url: img.url || `data:${img.mimeType || 'image/png'};base64,${img.data}`,
+            },
+          });
+        }
+        return {
+          role: m.role,
+          content: contentParts,
+        };
+      }
+      return {
+        role: m.role,
+        content: m.content,
+      };
+    });
+
     const messages = systemPrompt
-      ? [{ role: 'system', content: systemPrompt }, ...contextMessages]
-      : contextMessages;
+      ? [{ role: 'system', content: systemPrompt }, ...formattedMessages]
+      : formattedMessages;
 
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -899,12 +994,20 @@ export async function runChatStream(options: ChatRunOptions): Promise<void> {
   const contextMessages: MessageItem[] = (thread?.messages || []).slice(-20).map((m) => {
     let content = m.parts.map((p) => (p.type === 'text' ? p.text : '')).filter(Boolean).join('\n');
     const msgFileParts = m.parts.filter((p): p is FilePart => p.type === 'file');
+    const messageImages: ImageItem[] = [];
+
     if (msgFileParts.length > 0) {
       const fileTextBlocks = msgFileParts
         .map((f) => {
-          const isImg = f.mediaType?.startsWith('image/');
-          if (isImg) {
-            return `[User attached image: "${f.filename || 'image'}" (${Math.round((f.size || 0) / 1024)} KB), saved in /workspace/uploads/${f.filename}]`;
+          const isImg = f.mediaType?.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg)$/i.test(f.filename || '');
+          if (isImg && f.url) {
+            try {
+              const parsed = parseImageDataUrl(f.url, f.mediaType || 'image/png');
+              messageImages.push(parsed);
+            } catch (err) {
+              console.warn('[chat-runner] Could not parse image data url:', f.filename, err);
+            }
+            return `[Attached image: "${f.filename || 'image'}" (${Math.round((f.size || 0) / 1024)} KB), saved in /workspace/uploads/${f.filename}]`;
           }
           // Check if this file has parsed Office text
           const matchedOptFile = options.files?.find((optF) => optF.name === f.filename);
@@ -923,8 +1026,9 @@ export async function runChatStream(options: ChatRunOptions): Promise<void> {
     return {
       role: (m.role === 'assistant' || m.role === 'system' ? m.role : 'user') as 'user' | 'assistant' | 'system',
       content,
+      images: messageImages.length > 0 ? messageImages : undefined,
     };
-  }).filter((m) => m.content.trim().length > 0);
+  }).filter((m) => m.content.trim().length > 0 || (m.images && m.images.length > 0));
 
   // Autonomous Execution Loop
   const isContinuousGoal =

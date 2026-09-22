@@ -3,6 +3,7 @@ import {
   Send,
   Square,
   Paperclip,
+  Camera,
   Globe,
   MousePointerClick,
   Code,
@@ -32,6 +33,7 @@ interface MessageInputProps {
 
 interface ActiveTabSummary {
   id?: number;
+  windowId?: number;
   title: string;
   url: string;
   favIconUrl?: string;
@@ -43,6 +45,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSend, onStop, isSt
   const [includePageContext, setIncludePageContext] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTabSummary | null>(null);
   const [isRefreshingTab, setIsRefreshingTab] = useState(false);
+  const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [showQuickPrompts, setShowQuickPrompts] = useState(false);
@@ -52,20 +55,20 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSend, onStop, isSt
   const [attachedFiles, setAttachedFiles] = useState<AttachedFilePayload[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  const processFiles = async (files: File[] | FileList) => {
     if (!files || files.length === 0) return;
 
     const newItems: AttachedFilePayload[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const isImage = file.type.startsWith('image/');
+      const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg)$/i.test(file.name);
       const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
       const isOffice = isOfficeDocument(file.name);
       const officeType = isOffice ? getOfficeDocType(file.name) : undefined;
       const isText =
         !isOffice &&
+        !isImage &&
         (file.type.startsWith('text/') ||
         /\.(txt|md|markdown|csv|json|js|ts|tsx|jsx|py|html|css|yaml|yml|log|xml)$/i.test(file.name));
 
@@ -112,9 +115,77 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSend, onStop, isSt
       }
     }
 
-    setAttachedFiles((prev) => [...prev, ...newItems]);
+    if (newItems.length > 0) {
+      setAttachedFiles((prev) => [...prev, ...newItems]);
+    }
+  };
+
+  const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      await processFiles(e.target.files);
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle Ctrl+V clipboard pasting of images
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items || items.length === 0) return;
+
+    const filesToProcess: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          const ext = item.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+          const now = new Date();
+          const timestamp = `${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
+          const namedFile = new File(
+            [file],
+            `pasted-image-${timestamp}.${ext}`,
+            { type: item.type }
+          );
+          filesToProcess.push(namedFile);
+        }
+      }
+    }
+
+    if (filesToProcess.length > 0) {
+      await processFiles(filesToProcess);
+    }
+  };
+
+  // Capture active tab visible screenshot
+  const handleCaptureScreen = async () => {
+    if (isCapturingScreenshot) return;
+    setIsCapturingScreenshot(true);
+    try {
+      const tab = await getActiveTab();
+      if (!tab || !tab.id || tab.windowId === undefined || isRestrictedUrl(tab.url)) {
+        setIsCapturingScreenshot(false);
+        return;
+      }
+      const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+      if (dataUrl) {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const cleanTitle = (tab.title || 'page')
+          .slice(0, 24)
+          .replace(/[^a-zA-Z0-9_-]/g, '_');
+        const file = new File(
+          [blob],
+          `screenshot-${cleanTitle}-${Date.now().toString().slice(-4)}.png`,
+          { type: 'image/png' }
+        );
+        await processFiles([file]);
+      }
+    } catch (err) {
+      console.warn('[MessageInput] Failed to capture tab screenshot:', err);
+    } finally {
+      setIsCapturingScreenshot(false);
     }
   };
 
@@ -343,6 +414,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSend, onStop, isSt
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder={
             isListening
               ? 'Mendengarkan ucapan suara Anda...'
@@ -375,6 +447,25 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSend, onStop, isSt
                   {attachedFiles.length}
                 </span>
               )}
+            </button>
+
+            {/* Capture Visible Tab Screenshot */}
+            <button
+              type="button"
+              onClick={handleCaptureScreen}
+              disabled={isCapturingScreenshot || activeTab?.isRestricted}
+              className={`p-1 rounded-md transition-colors cursor-pointer ${
+                activeTab?.isRestricted
+                  ? 'opacity-35 cursor-not-allowed text-muted-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+              title={
+                activeTab?.isRestricted
+                  ? 'Protected browser page (screenshot not allowed)'
+                  : 'Capture active tab screenshot (Vision OCR / analysis)'
+              }
+            >
+              <Camera className={`size-3.5 ${isCapturingScreenshot ? 'animate-spin text-primary' : ''}`} />
             </button>
 
             {/* Toggle Read Active Page Context */}
