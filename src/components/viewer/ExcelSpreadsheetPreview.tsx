@@ -13,8 +13,13 @@ import {
   LoaderCircle,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
+  CheckCheck,
+  Wrench,
 } from 'lucide-react';
 import { triggerBlobDownload } from '../../services/archive';
+import { saveVfsFile } from '../../services/vfs';
+import { parseMarkdownTableToAoA } from '../../services/excel-generator';
 
 export interface ExcelSpreadsheetPreviewProps {
   content: string;
@@ -26,6 +31,8 @@ interface ParsedWorkbookState {
   sheetNames: string[];
   rawBytes: Uint8Array;
   error: string | null;
+  isRecovered: boolean;
+  recoveredFrom: string | null;
 }
 
 /**
@@ -87,6 +94,188 @@ function decodeContentToUint8Array(content: string): Uint8Array {
   return bytes;
 }
 
+/**
+ * Multi-strategy parser that parses valid binary XLSX/XLS or recovers
+ * Markdown tables, JSON arrays, CSV/TSV, and HTML tables seamlessly.
+ */
+function parseWorkbookWithRecovery(content: string): ParsedWorkbookState {
+  if (!content || content.trim().length === 0) {
+    return {
+      workbook: null,
+      sheetNames: [],
+      rawBytes: new Uint8Array(0),
+      error: 'Spreadsheet content is empty.',
+      isRecovered: false,
+      recoveredFrom: null,
+    };
+  }
+
+  const trimmed = content.trim();
+
+  // Strategy 1: Binary XLSX / XLS (Base64 data URL or raw binary bytes)
+  const isDataUrl = trimmed.startsWith('data:');
+  const isBase64Zip = trimmed.startsWith('UEsDB') || trimmed.startsWith('0M8R4');
+  if (isDataUrl || isBase64Zip) {
+    try {
+      const bytes = decodeContentToUint8Array(content);
+      if (bytes.length > 0) {
+        const wb = XLSX.read(bytes, { type: 'array' });
+        if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
+          return {
+            workbook: wb,
+            sheetNames: wb.SheetNames,
+            rawBytes: bytes,
+            error: null,
+            isRecovered: false,
+            recoveredFrom: null,
+          };
+        }
+      }
+    } catch {
+      // Fall through to text recovery strategies
+    }
+  }
+
+  // Strategy 2: Markdown Table Recovery (e.g. LLM wrote Markdown table into .xlsx file)
+  if (trimmed.includes('|') && /\|.*\|/.test(trimmed)) {
+    try {
+      const aoa = parseMarkdownTableToAoA(trimmed);
+      if (aoa.length > 0) {
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Data Tabel');
+        return {
+          workbook: wb,
+          sheetNames: ['Data Tabel'],
+          rawBytes: new Uint8Array(0),
+          error: null,
+          isRecovered: true,
+          recoveredFrom: 'Markdown Table',
+        };
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  // Strategy 3: JSON Array of Objects Recovery
+  if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(parsed);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Data JSON');
+        return {
+          workbook: wb,
+          sheetNames: ['Data JSON'],
+          rawBytes: new Uint8Array(0),
+          error: null,
+          isRecovered: true,
+          recoveredFrom: 'JSON Array',
+        };
+      } else if (typeof parsed === 'object' && parsed !== null) {
+        const wb = XLSX.utils.book_new();
+        let sheetCount = 0;
+        for (const [key, val] of Object.entries(parsed)) {
+          if (Array.isArray(val) && val.length > 0) {
+            const safeSheetName = key.replace(/[*?:/\\\[\]]/g, '_').slice(0, 31) || `Sheet${sheetCount + 1}`;
+            const ws = XLSX.utils.json_to_sheet(val);
+            XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+            sheetCount++;
+          }
+        }
+        if (sheetCount > 0) {
+          return {
+            workbook: wb,
+            sheetNames: wb.SheetNames,
+            rawBytes: new Uint8Array(0),
+            error: null,
+            isRecovered: true,
+            recoveredFrom: 'JSON Object',
+          };
+        }
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  // Strategy 4: CSV / TSV / Delimited String
+  if (trimmed.includes(',') || trimmed.includes('\t') || trimmed.includes(';')) {
+    try {
+      const wb = XLSX.read(trimmed, { type: 'string' });
+      if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
+        return {
+          workbook: wb,
+          sheetNames: wb.SheetNames,
+          rawBytes: new Uint8Array(0),
+          error: null,
+          isRecovered: true,
+          recoveredFrom: trimmed.includes('\t') ? 'TSV' : 'CSV',
+        };
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  // Strategy 5: HTML Table
+  if (trimmed.toLowerCase().includes('<table') && trimmed.toLowerCase().includes('</table>')) {
+    try {
+      const wb = XLSX.read(trimmed, { type: 'string' });
+      if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
+        return {
+          workbook: wb,
+          sheetNames: wb.SheetNames,
+          rawBytes: new Uint8Array(0),
+          error: null,
+          isRecovered: true,
+          recoveredFrom: 'HTML Table',
+        };
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  // Strategy 6: Binary fallback via decodeContentToUint8Array
+  try {
+    const bytes = decodeContentToUint8Array(content);
+    if (bytes.length > 0) {
+      const wb = XLSX.read(bytes, { type: 'array' });
+      if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
+        return {
+          workbook: wb,
+          sheetNames: wb.SheetNames,
+          rawBytes: bytes,
+          error: null,
+          isRecovered: false,
+          recoveredFrom: null,
+        };
+      }
+    }
+  } catch (err) {
+    return {
+      workbook: null,
+      sheetNames: [],
+      rawBytes: new Uint8Array(0),
+      error: err instanceof Error ? err.message : 'Failed to parse Excel file.',
+      isRecovered: false,
+      recoveredFrom: null,
+    };
+  }
+
+  return {
+    workbook: null,
+    sheetNames: [],
+    rawBytes: new Uint8Array(0),
+    error: 'Format berkas tidak dikenali sebagai Excel, CSV, JSON, atau tabel Markdown.',
+    isRecovered: false,
+    recoveredFrom: null,
+  };
+}
+
 export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = ({
   content,
   filePath,
@@ -98,6 +287,8 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
   const [pageSize, setPageSize] = useState<number | 'all'>(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [isParsing, setIsParsing] = useState(true);
+  const [isRepairing, setIsRepairing] = useState(false);
+  const [repairedSuccess, setRepairedSuccess] = useState(false);
 
   // Derived file name
   const fileName = useMemo(() => {
@@ -106,52 +297,9 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
     return parts[parts.length - 1] || 'spreadsheet.xlsx';
   }, [filePath]);
 
-  // Parse workbook from content
-  const { workbook, sheetNames, rawBytes, error } = useMemo<ParsedWorkbookState>(() => {
-    if (!content || content.trim().length === 0) {
-      return {
-        workbook: null,
-        sheetNames: [],
-        rawBytes: new Uint8Array(0),
-        error: 'Spreadsheet content is empty.',
-      };
-    }
-
-    try {
-      const bytes = decodeContentToUint8Array(content);
-      if (bytes.length === 0) {
-        return {
-          workbook: null,
-          sheetNames: [],
-          rawBytes: bytes,
-          error: 'Decoded spreadsheet content is empty.',
-        };
-      }
-
-      const wb = XLSX.read(bytes, { type: 'array' });
-      if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
-        return {
-          workbook: wb,
-          sheetNames: [],
-          rawBytes: bytes,
-          error: 'Workbook contains no readable sheets.',
-        };
-      }
-
-      return {
-        workbook: wb,
-        sheetNames: wb.SheetNames,
-        rawBytes: bytes,
-        error: null,
-      };
-    } catch (err) {
-      return {
-        workbook: null,
-        sheetNames: [],
-        rawBytes: new Uint8Array(0),
-        error: err instanceof Error ? err.message : 'Failed to parse Excel file.',
-      };
-    }
+  // Parse workbook from content using multi-strategy recovery
+  const { workbook, sheetNames, rawBytes, error, isRecovered, recoveredFrom } = useMemo<ParsedWorkbookState>(() => {
+    return parseWorkbookWithRecovery(content);
   }, [content]);
 
   // Handle parsing state and initial active sheet
@@ -323,23 +471,58 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
     }
   };
 
-  // Download original Excel workbook
+  // Download Excel workbook (guaranteed valid binary XLSX)
   const handleDownloadExcel = () => {
+    if (workbook) {
+      try {
+        const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', compression: true });
+        const blob = new Blob([wbout as any], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        const safeDownloadName = fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`;
+        triggerBlobDownload(blob, safeDownloadName);
+        return;
+      } catch (err) {
+        console.error('Failed to export workbook:', err);
+      }
+    }
+
     if (rawBytes.length > 0) {
       const blob = new Blob([rawBytes as any], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
       triggerBlobDownload(blob, fileName);
-    } else if (workbook) {
-      try {
-        const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-        const blob = new Blob([wbout as any], {
-          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        });
-        triggerBlobDownload(blob, fileName);
-      } catch (err) {
-        console.error('Failed to export workbook:', err);
-      }
+    }
+  };
+
+  // One-click repair: normalize recovered text-based spreadsheet to native binary XLSX in VFS
+  const handleRepairAndSaveToVfs = async () => {
+    if (!workbook || !filePath) return;
+    try {
+      setIsRepairing(true);
+      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', compression: true });
+      const blob = new Blob([wbout as any], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const base64Url = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const targetPath = filePath.endsWith('.xlsx') ? filePath : `${filePath}.xlsx`;
+      await saveVfsFile(
+        targetPath,
+        base64Url,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      setRepairedSuccess(true);
+      setTimeout(() => setRepairedSuccess(false), 4500);
+    } catch (err) {
+      console.error('Failed to normalize and save native XLSX to VFS:', err);
+    } finally {
+      setIsRepairing(false);
     }
   };
 
@@ -426,11 +609,48 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
               {headers.length} col{headers.length === 1 ? '' : 's'}
             </span>
+            {isRecovered && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200/80">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                <span>Auto-Recovered ({recoveredFrom})</span>
+              </span>
+            )}
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0">
+          {isRecovered && filePath && (
+            <button
+              type="button"
+              onClick={handleRepairAndSaveToVfs}
+              disabled={isRepairing || repairedSuccess}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer shadow-2xs ${
+                repairedSuccess
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+              }`}
+              title="Konversi dan simpan berkas ini menjadi file OpenXML binary .xlsx asli di VFS"
+            >
+              {repairedSuccess ? (
+                <>
+                  <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Tersimpan Sebagai .xlsx Asli!</span>
+                </>
+              ) : isRepairing ? (
+                <>
+                  <LoaderCircle className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                  <span>Menyimpan .xlsx...</span>
+                </>
+              ) : (
+                <>
+                  <Wrench className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Normalisasi ke .xlsx Asli</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleExportCsv}
@@ -446,13 +666,35 @@ export const ExcelSpreadsheetPreview: React.FC<ExcelSpreadsheetPreviewProps> = (
             type="button"
             onClick={handleDownloadExcel}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer shadow-2xs"
-            title="Download original Excel workbook"
+            title="Download valid Microsoft Excel workbook (.xlsx)"
           >
             <Download className="w-3.5 h-3.5 text-white" />
             <span>Download Excel</span>
           </button>
         </div>
       </div>
+
+      {/* Auto-Recovery Notice Banner */}
+      {isRecovered && !repairedSuccess && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2 bg-amber-50/80 border-b border-amber-200/70 text-amber-900 text-xs shrink-0">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Spreadsheet Otomatis Dipulihkan:</strong> Berkas ini awalnya berupa teks ({recoveredFrom}) tetapi disimpan dengan nama <code>{fileName}</code>. SAM-Agent telah mengonversi dan me-rendernya ke grid Excel secara rapi.
+            </span>
+          </div>
+          {filePath && (
+            <button
+              type="button"
+              onClick={handleRepairAndSaveToVfs}
+              disabled={isRepairing}
+              className="text-xs font-semibold underline text-amber-800 hover:text-amber-950 shrink-0 cursor-pointer"
+            >
+              Simpan permanen sebagai .xlsx asli
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Multi-Sheet Navigation Tabs (Excel Sheet Bar) */}
       <div className="flex items-center gap-1.5 px-4 py-2 border-b border-slate-200 bg-slate-50 overflow-x-auto shrink-0 scrollbar-thin">

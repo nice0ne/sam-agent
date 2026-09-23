@@ -322,6 +322,71 @@ When asked to create a presentation or slide deck:
 - Available layouts: \`"title"\`, \`"content"\`, \`"two-column"\`, \`"stat"\`, \`"conclusion"\`.
 - Executing \`generatePptx\` automatically compiles a native \`.pptx\` file into \`/workspace/<title>.pptx\` (downloadable) and launches an interactive live slide presentation viewer in Chrome!
 
+C. GENERATING MICROSOFT EXCEL SPREADSHEETS (.xlsx & .csv):
+When asked to create a spreadsheet, table data, financial sheet, budget, schedule, inventory, matrix, or export data to Excel (e.g. "buatkan excel", "generate excel", "buat file spreadsheet", "export ke xlsx"):
+- NEVER use \`writeFile\` with \`.xlsx\` to write raw text or Markdown tables! Doing so produces a corrupt file.
+- ALWAYS use the \`generateExcel\` action block!
+- \`generateExcel\` automatically compiles a genuine, binary OpenXML spreadsheet (.xlsx) with auto-fit column widths, typed numbers/currencies, and optional summary rows into \`/workspace/<title>.xlsx\` and companion \`/workspace/<title>.csv\`, and opens the live interactive Excel spreadsheet viewer in Chrome!
+
+Example 1: Single Sheet with Columns & Rows
+\`\`\`action
+[
+  {
+    "action": "generateExcel",
+    "title": "Laporan Penjualan Q1 2026",
+    "columns": ["Produk", "Kategori", "Qty", "Harga Satuan", "Total Penjualan"],
+    "rows": [
+      ["Laptop Pro 16", "Elektronik", 12, 24000000, 288000000],
+      ["Monitor 4K 27", "Elektronik", 25, 6500000, 162500000],
+      ["Keyboard Mechanical", "Aksesoris", 50, 1200000, 60000000],
+      ["Mouse Wireless", "Aksesoris", 80, 450000, 36000000]
+    ],
+    "summaryRow": true
+  }
+]
+\`\`\`
+
+Example 2: Multi-Sheet Workbook
+\`\`\`action
+[
+  {
+    "action": "generateExcel",
+    "title": "Rencana Keuangan Tahunan",
+    "sheets": [
+      {
+        "name": "Pendapatan",
+        "columns": ["Bulan", "Target", "Realisasi"],
+        "rows": [
+          ["Januari", 100000000, 115000000],
+          ["Februari", 120000000, 125000000]
+        ],
+        "summaryRow": true
+      },
+      {
+        "name": "Pengeluaran",
+        "columns": ["Pos Biaya", "Anggaran", "Realisasi"],
+        "rows": [
+          ["Operasional", 40000000, 38000000],
+          ["Marketing", 25000000, 22000000]
+        ],
+        "summaryRow": true
+      }
+    ]
+  }
+]
+\`\`\`
+
+Example 3: Direct Markdown Table Conversion
+\`\`\`action
+[
+  {
+    "action": "generateExcel",
+    "title": "Daftar Karyawan",
+    "markdownTable": "| ID | Nama | Divisi | Status |\\n|---|---|---|---|\\n| EMP01 | Budi Santoso | Engineering | Aktif |\\n| EMP02 | Siti Rahma | Marketing | Aktif |"
+  }
+]
+\`\`\`
+
 12. MULTIMODAL VISION & IMAGE UNDERSTANDING:
 You possess native visual and image recognition capabilities! When the user attaches, uploads, or pastes an image (diagrams, receipts, invoices, screenshots, error logs, charts, photos, UI designs, or handwritten notes):
 - You can inspect, read, and analyze the image directly.
@@ -1000,6 +1065,9 @@ async function parseAndExecuteActions(
       act.action === 'generateDoc' ||
       act.action === 'generateDocs' ||
       (act as any).action === 'createDoc' ||
+      act.action === 'generateExcel' ||
+      act.action === 'generateXlsx' ||
+      (act as any).action === 'createExcel' ||
       act.action === 'searchWeb' ||
       (act as any).action === 'webSearch' ||
       act.action === 'remember' ||
@@ -1089,6 +1157,8 @@ async function parseAndExecuteActions(
         ? 'generatePptx'
         : act.action === 'generateDoc' || act.action === 'generateDocs' || (act as any).action === 'createDoc'
         ? 'generateDoc'
+        : act.action === 'generateExcel' || act.action === 'generateXlsx' || (act as any).action === 'createExcel'
+        ? 'generateExcel'
         : act.action === 'eval'
         ? 'eval'
         : act.action === 'press_key' || (act as any).action === 'pressKey' || (act as any).action === 'key'

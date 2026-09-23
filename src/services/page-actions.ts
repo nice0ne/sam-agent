@@ -16,6 +16,7 @@ import { saveVfsFile } from './vfs';
 import { switchToTab, closeBrowserTab, isRestrictedTabUrl } from './tab-manager';
 import { executeUserTool } from './tool-registry';
 import { createDocArtifact } from './doc-generator';
+import { createExcelArtifact } from './excel-generator';
 import { executeWebSearch, formatWebSearchResults } from './web-search';
 import { addMemory, deleteMemory, searchMemories } from './semantic-memory';
 import { formatRagSearchPrompt } from './local-rag';
@@ -157,6 +158,26 @@ export interface GenerateDocAction {
   spec?: any;
   baseName?: string;
   filename?: string;
+  [key: string]: any;
+}
+
+export interface GenerateExcelAction {
+  action: 'generateExcel' | 'generateXlsx' | 'createExcel';
+  title?: string;
+  filename?: string;
+  author?: string;
+  sheetName?: string;
+  sheets?: Array<any>;
+  columns?: Array<any>;
+  rows?: Array<any>;
+  data?: Array<any>;
+  summaryRow?: boolean | Array<any>;
+  content?: string;
+  markdownTable?: string;
+  csv?: string;
+  spec?: any;
+  baseName?: string;
+  openPreview?: boolean;
   [key: string]: any;
 }
 
@@ -313,6 +334,7 @@ export type BrowserAction =
   | RunToolAction
   | GeneratePptxAction
   | GenerateDocAction
+  | GenerateExcelAction
   | SearchWebAction
   | ClickTagAction
   | FillTagAction
@@ -2053,6 +2075,44 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
         success: false,
         action: 'generateDoc',
         message: `Gagal membuat dokumen Word: ${err.message}`,
+        error: err.message,
+      };
+    }
+  }
+
+  // 4bb. Tabless action: Generate Microsoft Excel Spreadsheet (.xlsx & .csv)
+  if (action.action === 'generateExcel' || action.action === 'generateXlsx' || (action as any).action === 'createExcel') {
+    try {
+      const act = action as GenerateExcelAction;
+      const rawSpec = act.spec || act.workbook || act.sheet || act;
+      const baseName = act.baseName || act.filename || act.title || rawSpec.filename || rawSpec.title;
+
+      const res = await createExcelArtifact(rawSpec, baseName);
+
+      // Automatically open live spreadsheet viewer tab in preview mode
+      let viewerTabId: number | undefined;
+      if (act.openPreview !== false) {
+        try {
+          const viewerUrl = chrome.runtime.getURL(`viewer.html?path=${encodeURIComponent(res.xlsxPath)}`);
+          const tab = await chrome.tabs.create({ url: viewerUrl, active: true });
+          viewerTabId = tab.id;
+        } catch (_) {}
+      }
+
+      return {
+        success: true,
+        action: 'generateExcel',
+        target: res.xlsxPath,
+        tabId: viewerTabId,
+        message: `Spreadsheet Excel berhasil dibuat dan disimpan di VFS: '${res.xlsxPath}' (.xlsx OpenXML valid) dan '${res.csvPath}' (.csv).`,
+        data: { xlsxPath: res.xlsxPath, csvPath: res.csvPath, tabId: viewerTabId },
+        verified: true,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        action: 'generateExcel',
+        message: `Gagal membuat spreadsheet Excel: ${err.message}`,
         error: err.message,
       };
     }
