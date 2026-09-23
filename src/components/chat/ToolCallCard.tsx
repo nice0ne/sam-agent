@@ -33,6 +33,7 @@ import {
   Lock,
   ShieldAlert,
   FileSpreadsheet,
+  FolderArchive,
 } from 'lucide-react';
 import type { ToolCallPart } from '../../types/agent';
 
@@ -92,6 +93,7 @@ const TOOL_METADATA: Record<
   fillProfile: { label: 'Smart Form Auto-Fill', activeLabel: 'Auto-Filling Form', icon: UserCheck },
   saveProfileVault: { label: 'Saved Encrypted Profile', activeLabel: 'Encrypting Profile', icon: Lock },
   confirmAction: { label: 'Sensitive Action Guard', activeLabel: 'Awaiting Human Approval', icon: ShieldAlert },
+  backupData: { label: 'Backed up System Data', activeLabel: 'Backing up System Data', icon: FolderArchive },
   browserAction: { label: 'Browser action executed', activeLabel: 'Executing browser action', icon: Globe },
 };
 

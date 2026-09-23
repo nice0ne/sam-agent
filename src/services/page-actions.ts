@@ -46,6 +46,7 @@ import {
   decryptProfileVault,
   type UserProfileData,
 } from './form-autofill';
+import { saveBackupToVfs } from './backup-restore';
 
 export interface ActionAssertion {
   urlMatches?: string;
@@ -178,6 +179,22 @@ export interface GenerateExcelAction {
   spec?: any;
   baseName?: string;
   openPreview?: boolean;
+  [key: string]: any;
+}
+
+export interface BackupDataAction {
+  action: 'backupData' | 'backupSystem' | 'exportData';
+  scope?: {
+    includeConfigs?: boolean;
+    includeApiKeys?: boolean;
+    includeThreads?: boolean;
+    includeVfs?: boolean;
+    includeMemories?: boolean;
+    includeSchedules?: boolean;
+    includeProfileVault?: boolean;
+  };
+  filename?: string;
+  targetPath?: string;
   [key: string]: any;
 }
 
@@ -352,7 +369,8 @@ export type BrowserAction =
   | ListScheduledTasksAction
   | FillProfileAction
   | SaveProfileVaultAction
-  | ConfirmAction;
+  | ConfirmAction
+  | BackupDataAction;
 
 export interface ActionResult {
   success: boolean;
@@ -2653,6 +2671,41 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
       },
       verified: true,
     };
+  }
+
+  // 4m. Tabless action: Backup / Export System Data to VFS
+  if (action.action === 'backupData' || action.action === 'backupSystem' || (action as any).action === 'exportData') {
+    try {
+      const act = action as BackupDataAction;
+      const scope = act.scope || {
+        includeConfigs: true,
+        includeApiKeys: false,
+        includeThreads: true,
+        includeVfs: true,
+        includeMemories: true,
+        includeSchedules: true,
+        includeProfileVault: true,
+      };
+
+      const customPath = act.targetPath || (act.filename ? `/workspace/${act.filename}` : undefined);
+      const res = await saveBackupToVfs(scope, customPath);
+
+      return {
+        success: true,
+        action: 'backupData',
+        target: res.path,
+        message: `Cadangan sistem berhasil dibuat dan disimpan di VFS: '${res.path}'. Total item dicadangkan: ${res.manifest.itemCounts.threads} percakapan, ${res.manifest.itemCounts.vfsFiles} berkas VFS, ${res.manifest.itemCounts.episodicMemories} memori.`,
+        data: { path: res.path, manifest: res.manifest },
+        verified: true,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        action: 'backupData',
+        message: `Gagal membuat cadangan sistem: ${err.message}`,
+        error: err.message,
+      };
+    }
   }
 
   // 5. In-page DOM actions (fill, click, select, eval)

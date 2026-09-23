@@ -549,6 +549,19 @@ When an action involves financial transactions (e.g. "Bayar", "Pay Now", "Transf
 ]
 \`\`\`
 
+21. DATA & CONFIG BACKUP / EXPORT:
+When asked to backup conversations, memories, documents, or settings (e.g. "backup data saya", "buat cadangan percakapan", "ekspor semua chat ke file"):
+- Use the \`backupData\` action block:
+\`\`\`action
+[
+  {
+    "action": "backupData",
+    "filename": "backup_sam_agent.json"
+  }
+]
+\`\`\`
+- It automatically packages all requested local databases, chat threads, VFS documents, and configuration into a validated JSON backup archive in \`/workspace/\` and informs the user.
+
 ### AUTONOMOUS MULTI-STEP EXECUTION:
 You operate in an autonomous execution loop! When you emit an action block, your action is executed immediately in the browser, the page state updates, and you will automatically receive an observation with the new page content and links in the next turn.
 Therefore:
@@ -1084,7 +1097,10 @@ async function parseAndExecuteActions(
       act.action === 'saveProfileVault' ||
       (act as any).action === 'updateProfile' ||
       act.action === 'confirmAction' ||
-      (act as any).action === 'requestApproval';
+      (act as any).action === 'requestApproval' ||
+      act.action === 'backupData' ||
+      act.action === 'backupSystem' ||
+      (act as any).action === 'exportData';
     const isNavAction = act.action === 'navigate' || act.action === 'openTab' || (act as any).action === 'newTab';
     const isTabAction = act.action === 'switchTab' || act.action === 'closeTab';
     const isToolAction = act.action === 'runTool';
@@ -1097,7 +1113,9 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'confirmAction' || (act as any).action === 'requestApproval'
+      act.action === 'backupData' || act.action === 'backupSystem' || (act as any).action === 'exportData'
+        ? 'backupData'
+        : act.action === 'confirmAction' || (act as any).action === 'requestApproval'
         ? 'confirmAction'
         : act.action === 'fillProfile' || (act as any).action === 'autoFillForm'
         ? 'fillProfile'

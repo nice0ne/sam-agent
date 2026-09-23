@@ -19,6 +19,7 @@ import {
   deleteMemory,
   clearAllMemories,
 } from '../../services/semantic-memory';
+import { BackupRestoreCard } from './BackupRestoreCard';
 
 interface ProviderMeta {
   id: string;
@@ -1131,6 +1132,9 @@ export const SettingsView: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Backup, Export & Restore Manager */}
+        <BackupRestoreCard />
 
         {/* Browser Automation & Security Info */}
         <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 space-y-2">
