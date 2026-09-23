@@ -445,6 +445,30 @@ When the user asks you to perform a task on a recurring schedule or at a specifi
 \`\`\`
 - These tasks run automatically via \`chrome.alarms\` in the background service worker even if the user closes the sidepanel!
 
+19. SMART FORM AUTO-FILLER & ENCRYPTED PROFILE VAULT:
+When you need to fill out online registration forms, job applications, or checkout details:
+- Use \`fillProfile\` to semantically populate all matching form fields on the active page in one click:
+\`\`\`action
+[
+  { "action": "fillProfile" }
+]
+\`\`\`
+- You can also pass one-time profile overrides or save data to the encrypted profile vault (AES-GCM 256-bit on-device):
+\`\`\`action
+[
+  {
+    "action": "saveProfileVault",
+    "profile": {
+      "fullName": "Muhammad Sam",
+      "email": "sam@example.com",
+      "phone": "+628123456789",
+      "company": "AI Innovations",
+      "city": "Jakarta"
+    }
+  }
+]
+\`\`\`
+
 ### AUTONOMOUS MULTI-STEP EXECUTION:
 You operate in an autonomous execution loop! When you emit an action block, your action is executed immediately in the browser, the page state updates, and you will automatically receive an observation with the new page content and links in the next turn.
 Therefore:
@@ -973,7 +997,9 @@ async function parseAndExecuteActions(
       act.action === 'scheduleTask' ||
       (act as any).action === 'createSchedule' ||
       act.action === 'listScheduledTasks' ||
-      (act as any).action === 'listSchedules';
+      (act as any).action === 'listSchedules' ||
+      act.action === 'saveProfileVault' ||
+      (act as any).action === 'updateProfile';
     const isNavAction = act.action === 'navigate' || act.action === 'openTab' || (act as any).action === 'newTab';
     const isTabAction = act.action === 'switchTab' || act.action === 'closeTab';
     const isToolAction = act.action === 'runTool';
@@ -986,7 +1012,11 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'scheduleTask' || (act as any).action === 'createSchedule'
+      act.action === 'fillProfile' || (act as any).action === 'autoFillForm'
+        ? 'fillProfile'
+        : act.action === 'saveProfileVault' || (act as any).action === 'updateProfile'
+        ? 'saveProfileVault'
+        : act.action === 'scheduleTask' || (act as any).action === 'createSchedule'
         ? 'scheduleTask'
         : act.action === 'listScheduledTasks' || (act as any).action === 'listSchedules'
         ? 'listScheduledTasks'
@@ -1542,6 +1572,12 @@ ${BASE_CAPABILITIES_PROMPT}`;
 
     const actionSummary = executedResults
       .map((r) => {
+        if (r.action === 'fillProfile' || (r as any).action === 'autoFillForm') {
+          return `- [fillProfile]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
+        }
+        if (r.action === 'saveProfileVault' || (r as any).action === 'updateProfile') {
+          return `- [saveProfileVault]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
+        }
         if (r.action === 'scheduleTask' || (r as any).action === 'createSchedule') {
           return `- [scheduleTask]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
         }

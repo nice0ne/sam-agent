@@ -39,6 +39,12 @@ import {
   formatScheduleDescription,
   type ScheduledTask,
 } from './scheduler';
+import {
+  autoFillTabForm,
+  encryptProfileVault,
+  decryptProfileVault,
+  type UserProfileData,
+} from './form-autofill';
 
 export interface ActionAssertion {
   urlMatches?: string;
@@ -271,6 +277,18 @@ export interface ListScheduledTasksAction {
   [key: string]: any;
 }
 
+export interface FillProfileAction {
+  action: 'fillProfile' | 'autoFillForm';
+  profile?: Partial<UserProfileData>;
+  [key: string]: any;
+}
+
+export interface SaveProfileVaultAction {
+  action: 'saveProfileVault' | 'updateProfile';
+  profile: Partial<UserProfileData>;
+  [key: string]: any;
+}
+
 export type BrowserAction =
   | FillFieldAction
   | ClickAction
@@ -300,7 +318,9 @@ export type BrowserAction =
   | CdpInspectNetworkAction
   | OpenParallelTabsAction
   | ScheduleTaskAction
-  | ListScheduledTasksAction;
+  | ListScheduledTasksAction
+  | FillProfileAction
+  | SaveProfileVaultAction;
 
 export interface ActionResult {
   success: boolean;
@@ -2477,6 +2497,62 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
         success: false,
         action: 'listScheduledTasks',
         message: `Gagal memuat jadwal: ${err.message}`,
+        error: err.message,
+      };
+    }
+  }
+
+  // 4j. Smart Form Auto-Filler action
+  if (action.action === 'fillProfile' || action.action === 'autoFillForm') {
+    let targetTabId = tabId;
+    if (!targetTabId || targetTabId <= 0) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      targetTabId = activeTab?.id || 0;
+    }
+    if (!targetTabId || targetTabId <= 0) {
+      return {
+        success: false,
+        action: 'fillProfile',
+        message: 'Tidak ada tab aktif untuk auto-fill formulir.',
+      };
+    }
+
+    const fillRes = await autoFillTabForm(targetTabId, action.profile);
+    const details = fillRes.filledFields
+      .map((f) => `- [${f.fieldName}]: "${f.value}" -> ${f.selector}`)
+      .join('\n');
+
+    return {
+      success: fillRes.success,
+      action: 'fillProfile',
+      target: `${fillRes.filledFields.length} fields filled`,
+      message: `${fillRes.message}${details ? `\n\nDetail kolom terisi:\n${details}` : ''}`,
+      data: fillRes,
+      verified: true,
+    };
+  }
+
+  // 4k. Save Encrypted Profile Vault action
+  if (action.action === 'saveProfileVault' || action.action === 'updateProfile') {
+    try {
+      const currentVault = (await decryptProfileVault()) || {};
+      const updatedProfile = { ...currentVault, ...action.profile };
+      await encryptProfileVault(updatedProfile);
+
+      const keysUpdated = Object.keys(action.profile).join(', ');
+      return {
+        success: true,
+        action: 'saveProfileVault',
+        target: 'Encrypted Profile Vault',
+        message: `Data profil berhasil dienkripsi dan disimpan secara lokal (AES-GCM 256-bit). Bidang yang diperbarui: ${keysUpdated}.`,
+        data: { keysUpdated: Object.keys(action.profile) },
+        verified: true,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        action: 'saveProfileVault',
+        message: `Gagal menyimpan data profil: ${err.message}`,
         error: err.message,
       };
     }

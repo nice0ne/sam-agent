@@ -29,6 +29,8 @@ import {
   Layers,
   CalendarClock,
   Clock,
+  UserCheck,
+  Lock,
 } from 'lucide-react';
 import type { ToolCallPart } from '../../types/agent';
 
@@ -83,6 +85,8 @@ const TOOL_METADATA: Record<
   openParallelTabs: { label: 'Parallel Multi-Tab Scraping', activeLabel: 'Scraping Multi-Tabs', icon: Layers },
   scheduleTask: { label: 'Scheduled Routine Task', activeLabel: 'Scheduling Routine Task', icon: CalendarClock },
   listScheduledTasks: { label: 'Listed Scheduled Tasks', activeLabel: 'Listing Scheduled Tasks', icon: Clock },
+  fillProfile: { label: 'Smart Form Auto-Fill', activeLabel: 'Auto-Filling Form', icon: UserCheck },
+  saveProfileVault: { label: 'Saved Encrypted Profile', activeLabel: 'Encrypting Profile', icon: Lock },
   browserAction: { label: 'Browser action executed', activeLabel: 'Executing browser action', icon: Globe },
 };
 
