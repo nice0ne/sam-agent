@@ -32,6 +32,13 @@ import {
   formatParallelTabsPrompt,
   type ParallelTabTarget,
 } from './parallel-tabs';
+import {
+  saveScheduledTask,
+  listScheduledTasks,
+  deleteScheduledTask,
+  formatScheduleDescription,
+  type ScheduledTask,
+} from './scheduler';
 
 export interface ActionAssertion {
   urlMatches?: string;
@@ -247,6 +254,23 @@ export interface OpenParallelTabsAction {
   [key: string]: any;
 }
 
+export interface ScheduleTaskAction {
+  action: 'scheduleTask' | 'createSchedule';
+  title: string;
+  prompt: string;
+  scheduleType?: 'interval' | 'cron' | 'once';
+  intervalMinutes?: number;
+  cronExpression?: string;
+  runAtTimestamp?: number;
+  notifyOnComplete?: boolean;
+  [key: string]: any;
+}
+
+export interface ListScheduledTasksAction {
+  action: 'listScheduledTasks' | 'listSchedules';
+  [key: string]: any;
+}
+
 export type BrowserAction =
   | FillFieldAction
   | ClickAction
@@ -274,7 +298,9 @@ export type BrowserAction =
   | SniffNetworkAction
   | ReadConsoleErrorsAction
   | CdpInspectNetworkAction
-  | OpenParallelTabsAction;
+  | OpenParallelTabsAction
+  | ScheduleTaskAction
+  | ListScheduledTasksAction;
 
 export interface ActionResult {
   success: boolean;
@@ -2380,6 +2406,80 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
       data: { count: parallelRes.results.length, results: parallelRes.results },
       verified: true,
     };
+  }
+
+  // 4i. Autonomous Scheduled Routine & Background Alarms action
+  if (action.action === 'scheduleTask' || action.action === 'createSchedule') {
+    try {
+      const scheduleType = action.scheduleType || 'interval';
+      const intervalMinutes = action.intervalMinutes ? Math.max(1, Math.round(action.intervalMinutes)) : 60;
+      const newTask: ScheduledTask = {
+        id: crypto.randomUUID(),
+        title: action.title || 'Scheduled Routine',
+        prompt: action.prompt,
+        scheduleType,
+        intervalMinutes: scheduleType === 'interval' ? intervalMinutes : undefined,
+        cronExpression: scheduleType === 'cron' ? action.cronExpression : undefined,
+        runAtTimestamp: scheduleType === 'once' ? action.runAtTimestamp : undefined,
+        enabled: true,
+        notifyOnComplete: action.notifyOnComplete !== false,
+        createdAt: Date.now(),
+      };
+
+      await saveScheduledTask(newTask);
+      const desc = formatScheduleDescription(newTask);
+
+      return {
+        success: true,
+        action: 'scheduleTask',
+        target: newTask.title,
+        message: `Tugas otomatis latar belakang berhasil dijadwalkan!\n- **ID**: \`${newTask.id}\`\n- **Judul**: "${newTask.title}"\n- **Jadwal**: ${desc}\n- **Instruksi**: "${newTask.prompt}"\n\nTugas ini terdaftar di \`chrome.alarms\` dan akan berjalan otomatis di background service worker bahkan saat panel ditutup.`,
+        data: newTask,
+        verified: true,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        action: 'scheduleTask',
+        target: action.title,
+        message: `Gagal menjadwalkan tugas: ${err.message}`,
+        error: err.message,
+      };
+    }
+  }
+
+  if (action.action === 'listScheduledTasks' || action.action === 'listSchedules') {
+    try {
+      const tasks = await listScheduledTasks();
+      if (tasks.length === 0) {
+        return {
+          success: true,
+          action: 'listScheduledTasks',
+          message: 'Belum ada tugas terjadwal di background.',
+          data: { tasks: [] },
+          verified: true,
+        };
+      }
+      const lines = tasks.map((t, idx) => {
+        const desc = formatScheduleDescription(t);
+        const statusIcon = t.enabled ? '🟢' : '⏸️';
+        return `${idx + 1}. ${statusIcon} **${t.title}** (\`${t.id.slice(0, 8)}\`)\n   Jadwal: ${desc} | Terakhir: ${t.lastStatus || 'Belum berjalan'}\n   Prompt: "${t.prompt.slice(0, 80)}"`;
+      });
+      return {
+        success: true,
+        action: 'listScheduledTasks',
+        message: `Ditemukan ${tasks.length} tugas background terjadwal:\n\n${lines.join('\n\n')}`,
+        data: { count: tasks.length, tasks },
+        verified: true,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        action: 'listScheduledTasks',
+        message: `Gagal memuat jadwal: ${err.message}`,
+        error: err.message,
+      };
+    }
   }
 
   // 5. In-page DOM actions (fill, click, select, eval)

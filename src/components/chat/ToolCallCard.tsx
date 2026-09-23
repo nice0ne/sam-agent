@@ -27,6 +27,8 @@ import {
   Bug,
   Radio,
   Layers,
+  CalendarClock,
+  Clock,
 } from 'lucide-react';
 import type { ToolCallPart } from '../../types/agent';
 
@@ -79,6 +81,8 @@ const TOOL_METADATA: Record<
   readConsoleErrors: { label: 'Read Console Errors', activeLabel: 'Reading Console Errors', icon: Bug },
   cdpInspectNetwork: { label: 'CDP Kernel Network Inspection', activeLabel: 'Inspecting CDP Network', icon: Radio },
   openParallelTabs: { label: 'Parallel Multi-Tab Scraping', activeLabel: 'Scraping Multi-Tabs', icon: Layers },
+  scheduleTask: { label: 'Scheduled Routine Task', activeLabel: 'Scheduling Routine Task', icon: CalendarClock },
+  listScheduledTasks: { label: 'Listed Scheduled Tasks', activeLabel: 'Listing Scheduled Tasks', icon: Clock },
   browserAction: { label: 'Browser action executed', activeLabel: 'Executing browser action', icon: Globe },
 };
 

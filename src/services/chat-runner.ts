@@ -423,6 +423,28 @@ When you need to research, compare prices/products across multiple websites, or 
 \`\`\`
 - Background tabs are loaded concurrently, cleaned of noise/ads, and auto-closed after scraping to preserve browser memory! You will receive the extracted text of all tabs together in the next turn.
 
+18. AUTONOMOUS SCHEDULED ROUTINES & BACKGROUND ALARMS:
+When the user asks you to perform a task on a recurring schedule or at a specific time (e.g. "every morning check news", "every 30 minutes monitor product price", "run at 8pm"):
+- Schedule autonomous background tasks using \`scheduleTask\`:
+\`\`\`action
+[
+  {
+    "action": "scheduleTask",
+    "title": "Monitor Harga Laptop RTX 4060",
+    "prompt": "Buka Tokopedia, cari RTX 4060 termurah, dan simpan ringkasan harganya ke /vfs/rtx_prices.md",
+    "scheduleType": "interval",
+    "intervalMinutes": 30
+  }
+]
+\`\`\`
+- To view existing background routines, use:
+\`\`\`action
+[
+  { "action": "listScheduledTasks" }
+]
+\`\`\`
+- These tasks run automatically via \`chrome.alarms\` in the background service worker even if the user closes the sidepanel!
+
 ### AUTONOMOUS MULTI-STEP EXECUTION:
 You operate in an autonomous execution loop! When you emit an action block, your action is executed immediately in the browser, the page state updates, and you will automatically receive an observation with the new page content and links in the next turn.
 Therefore:
@@ -947,7 +969,11 @@ async function parseAndExecuteActions(
       act.action === 'updateSubgoal' ||
       act.action === 'ragSearch' ||
       act.action === 'openParallelTabs' ||
-      (act as any).action === 'parallelScrape';
+      (act as any).action === 'parallelScrape' ||
+      act.action === 'scheduleTask' ||
+      (act as any).action === 'createSchedule' ||
+      act.action === 'listScheduledTasks' ||
+      (act as any).action === 'listSchedules';
     const isNavAction = act.action === 'navigate' || act.action === 'openTab' || (act as any).action === 'newTab';
     const isTabAction = act.action === 'switchTab' || act.action === 'closeTab';
     const isToolAction = act.action === 'runTool';
@@ -960,7 +986,11 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'openParallelTabs' || (act as any).action === 'parallelScrape'
+      act.action === 'scheduleTask' || (act as any).action === 'createSchedule'
+        ? 'scheduleTask'
+        : act.action === 'listScheduledTasks' || (act as any).action === 'listSchedules'
+        ? 'listScheduledTasks'
+        : act.action === 'openParallelTabs' || (act as any).action === 'parallelScrape'
         ? 'openParallelTabs'
         : act.action === 'cdpInspectNetwork'
         ? 'cdpInspectNetwork'
@@ -1512,6 +1542,12 @@ ${BASE_CAPABILITIES_PROMPT}`;
 
     const actionSummary = executedResults
       .map((r) => {
+        if (r.action === 'scheduleTask' || (r as any).action === 'createSchedule') {
+          return `- [scheduleTask]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
+        }
+        if (r.action === 'listScheduledTasks' || (r as any).action === 'listSchedules') {
+          return `- [listScheduledTasks]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
+        }
         if (r.action === 'openParallelTabs' || (r as any).action === 'parallelScrape') {
           return `- [openParallelTabs]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
         }
