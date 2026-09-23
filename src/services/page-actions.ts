@@ -27,6 +27,11 @@ import {
   cdpInspectNetwork,
   formatCdpNetworkPrompt,
 } from './network-sniffer';
+import {
+  executeParallelTabs,
+  formatParallelTabsPrompt,
+  type ParallelTabTarget,
+} from './parallel-tabs';
 
 export interface ActionAssertion {
   urlMatches?: string;
@@ -232,6 +237,16 @@ export interface CdpInspectNetworkAction {
   [key: string]: any;
 }
 
+export interface OpenParallelTabsAction {
+  action: 'openParallelTabs' | 'parallelScrape';
+  targets: (string | ParallelTabTarget)[];
+  concurrency?: number;
+  autoCloseTabs?: boolean;
+  timeoutMs?: number;
+  extractSelector?: string;
+  [key: string]: any;
+}
+
 export type BrowserAction =
   | FillFieldAction
   | ClickAction
@@ -258,7 +273,8 @@ export type BrowserAction =
   | RagSearchAction
   | SniffNetworkAction
   | ReadConsoleErrorsAction
-  | CdpInspectNetworkAction;
+  | CdpInspectNetworkAction
+  | OpenParallelTabsAction;
 
 export interface ActionResult {
   success: boolean;
@@ -2332,6 +2348,36 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
       target: action.urlPattern || action.filter || 'cdp-network',
       message: `${cdpRes.message}\n\n${promptFormatted}`,
       data: { count: cdpRes.logs.length, logs: cdpRes.logs },
+      verified: true,
+    };
+  }
+
+  // 4h. Parallel Multi-Tab Orchestrator & Batch Scraper action
+  if (action.action === 'openParallelTabs' || action.action === 'parallelScrape') {
+    const targets = action.targets || [];
+    if (!Array.isArray(targets) || targets.length === 0) {
+      return {
+        success: false,
+        action: 'openParallelTabs',
+        message: 'Parameter "targets" harus berupa array URL atau objek { url, name, extractSelector }.',
+      };
+    }
+
+    const parallelRes = await executeParallelTabs({
+      targets,
+      concurrency: action.concurrency,
+      autoCloseTabs: action.autoCloseTabs,
+      timeoutMs: action.timeoutMs,
+      extractSelector: action.extractSelector,
+    });
+
+    const promptFormatted = formatParallelTabsPrompt(parallelRes.results);
+    return {
+      success: parallelRes.success,
+      action: 'openParallelTabs',
+      target: `${targets.length} tabs`,
+      message: `${parallelRes.message}\n\n${promptFormatted}`,
+      data: { count: parallelRes.results.length, results: parallelRes.results },
       verified: true,
     };
   }

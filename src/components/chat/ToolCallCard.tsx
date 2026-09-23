@@ -26,6 +26,7 @@ import {
   Activity,
   Bug,
   Radio,
+  Layers,
 } from 'lucide-react';
 import type { ToolCallPart } from '../../types/agent';
 
@@ -77,6 +78,7 @@ const TOOL_METADATA: Record<
   sniffNetwork: { label: 'Sniffed Network APIs', activeLabel: 'Sniffing Network APIs', icon: Activity },
   readConsoleErrors: { label: 'Read Console Errors', activeLabel: 'Reading Console Errors', icon: Bug },
   cdpInspectNetwork: { label: 'CDP Kernel Network Inspection', activeLabel: 'Inspecting CDP Network', icon: Radio },
+  openParallelTabs: { label: 'Parallel Multi-Tab Scraping', activeLabel: 'Scraping Multi-Tabs', icon: Layers },
   browserAction: { label: 'Browser action executed', activeLabel: 'Executing browser action', icon: Globe },
 };
 

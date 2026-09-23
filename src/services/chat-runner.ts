@@ -404,6 +404,25 @@ When an action fails, a form submission produces no visible response, an API req
 \`\`\`
 - All sensitive tokens, Bearer auth headers, and cookies are automatically redacted for privacy and token efficiency!
 
+17. PARALLEL MULTI-TAB ORCHESTRATOR & BATCH SCRAPER:
+When you need to research, compare prices/products across multiple websites, or read multiple articles simultaneously without opening them sequentially one by one:
+- Use \`openParallelTabs\` to process up to 4 tabs concurrently in the background:
+\`\`\`action
+[
+  {
+    "action": "openParallelTabs",
+    "targets": [
+      { "url": "https://tokopedia.com/search?q=rtx+4060", "name": "Tokopedia" },
+      { "url": "https://shopee.co.id/search?keyword=rtx+4060", "name": "Shopee" },
+      { "url": "https://blibli.com/backend/search/products?searchTerm=rtx+4060", "name": "Blibli" }
+    ],
+    "concurrency": 3,
+    "autoCloseTabs": true
+  }
+]
+\`\`\`
+- Background tabs are loaded concurrently, cleaned of noise/ads, and auto-closed after scraping to preserve browser memory! You will receive the extracted text of all tabs together in the next turn.
+
 ### AUTONOMOUS MULTI-STEP EXECUTION:
 You operate in an autonomous execution loop! When you emit an action block, your action is executed immediately in the browser, the page state updates, and you will automatically receive an observation with the new page content and links in the next turn.
 Therefore:
@@ -926,7 +945,9 @@ async function parseAndExecuteActions(
       act.action === 'forget' ||
       act.action === 'createPlan' ||
       act.action === 'updateSubgoal' ||
-      act.action === 'ragSearch';
+      act.action === 'ragSearch' ||
+      act.action === 'openParallelTabs' ||
+      (act as any).action === 'parallelScrape';
     const isNavAction = act.action === 'navigate' || act.action === 'openTab' || (act as any).action === 'newTab';
     const isTabAction = act.action === 'switchTab' || act.action === 'closeTab';
     const isToolAction = act.action === 'runTool';
@@ -939,7 +960,9 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'cdpInspectNetwork'
+      act.action === 'openParallelTabs' || (act as any).action === 'parallelScrape'
+        ? 'openParallelTabs'
+        : act.action === 'cdpInspectNetwork'
         ? 'cdpInspectNetwork'
         : act.action === 'sniffNetwork'
         ? 'sniffNetwork'
@@ -1489,6 +1512,9 @@ ${BASE_CAPABILITIES_PROMPT}`;
 
     const actionSummary = executedResults
       .map((r) => {
+        if (r.action === 'openParallelTabs' || (r as any).action === 'parallelScrape') {
+          return `- [openParallelTabs]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
+        }
         if (r.action === 'cdpInspectNetwork') {
           return `- [cdpInspectNetwork]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
         }
