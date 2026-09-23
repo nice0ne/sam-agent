@@ -396,6 +396,12 @@ When an action fails, a form submission produces no visible response, an API req
   { "action": "readConsoleErrors", "level": "error", "limit": 10 }
 ]
 \`\`\`
+- For deep kernel-level inspection (detecting WebSockets, Server-Sent Events, raw redirects, or native Chromium net::ERR_* failures), use \`cdpInspectNetwork\`:
+\`\`\`action
+[
+  { "action": "cdpInspectNetwork", "filter": "failed", "durationMs": 2500 }
+]
+\`\`\`
 - All sensitive tokens, Bearer auth headers, and cookies are automatically redacted for privacy and token efficiency!
 
 ### AUTONOMOUS MULTI-STEP EXECUTION:
@@ -933,7 +939,9 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'sniffNetwork'
+      act.action === 'cdpInspectNetwork'
+        ? 'cdpInspectNetwork'
+        : act.action === 'sniffNetwork'
         ? 'sniffNetwork'
         : act.action === 'readConsoleErrors'
         ? 'readConsoleErrors'
@@ -1481,6 +1489,9 @@ ${BASE_CAPABILITIES_PROMPT}`;
 
     const actionSummary = executedResults
       .map((r) => {
+        if (r.action === 'cdpInspectNetwork') {
+          return `- [cdpInspectNetwork]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
+        }
         if (r.action === 'sniffNetwork') {
           return `- [sniffNetwork]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
         }

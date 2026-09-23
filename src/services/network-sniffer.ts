@@ -545,3 +545,234 @@ export function formatConsoleErrorsPrompt(logs: ConsoleLogEntry[]): string {
 
   return `[Recent Console Errors & Warnings]:\n${lines.join('\n')}`;
 }
+
+export interface CdpNetworkEntry {
+  requestId: string;
+  url: string;
+  method: string;
+  resourceType?: string;
+  status: number;
+  statusText?: string;
+  mimeType?: string;
+  protocol?: string;
+  remoteIPAddress?: string;
+  errorText?: string;
+  durationMs: number;
+  timestamp: number;
+  responseHeaders?: Record<string, string>;
+  responseBodySnippet?: string;
+}
+
+export interface CdpConsoleEntry {
+  type: string;
+  text: string;
+  url?: string;
+  lineNumber?: number;
+  stack?: string;
+  timestamp: number;
+}
+
+export interface CdpInspectOptions {
+  durationMs?: number;
+  filter?: 'all' | 'failed';
+  urlPattern?: string;
+  limit?: number;
+}
+
+/**
+ * Ephemeral Chrome DevTools Protocol (CDP) Network Inspector
+ * Attaches chrome.debugger on-demand for a short window (default 2500ms),
+ * captures real kernel-level network requests (including WebSockets, SSE, redirects, and net::ERR_*),
+ * then immediately detaches to eliminate the yellow notification banner.
+ */
+export async function cdpInspectNetwork(
+  tabId: number,
+  options: CdpInspectOptions = {}
+): Promise<{ success: boolean; logs: CdpNetworkEntry[]; message: string }> {
+  if (typeof chrome === 'undefined' || !chrome.debugger) {
+    // Fallback to in-page sniffer if debugger API is unavailable
+    const fallback = await sniffTabNetwork(tabId, {
+      filter: options.filter,
+      urlPattern: options.urlPattern,
+      limit: options.limit,
+    });
+    return {
+      success: fallback.success,
+      logs: fallback.logs.map((l) => ({
+        requestId: l.id,
+        url: l.url,
+        method: l.method,
+        status: l.status,
+        statusText: l.statusText,
+        durationMs: l.durationMs,
+        timestamp: l.timestamp,
+        responseBodySnippet: l.responseSnippet,
+      })),
+      message: `${fallback.message} (Fallback from CDP)`,
+    };
+  }
+
+  const debuggee = { tabId };
+  const requests = new Map<string, { start: number; req: any; res?: any; failed?: any }>();
+  const listenDuration = Math.min(Math.max(options.durationMs || 2500, 1000), 8000);
+
+  const eventListener = (source: chrome.debugger.Debuggee, method: string, params?: any) => {
+    if (source.tabId !== tabId || !params) return;
+
+    if (method === 'Network.requestWillBeSent') {
+      requests.set(params.requestId, {
+        start: performance.now(),
+        req: params.request,
+      });
+    } else if (method === 'Network.responseReceived') {
+      const existing = requests.get(params.requestId);
+      if (existing) {
+        existing.res = params.response;
+      }
+    } else if (method === 'Network.loadingFailed') {
+      const existing = requests.get(params.requestId);
+      if (existing) {
+        existing.failed = params;
+      }
+    }
+  };
+
+  try {
+    chrome.debugger.onEvent.addListener(eventListener);
+    await chrome.debugger.attach(debuggee, '1.3');
+    await chrome.debugger.sendCommand(debuggee, 'Network.enable', {
+      maxTotalBufferSize: 5000000,
+      maxResourceBufferSize: 1000000,
+    });
+
+    // Listen for the specified duration to capture real-time traffic
+    await new Promise((r) => setTimeout(r, listenDuration));
+
+    // Try fetching response bodies for failed or interesting API requests before detaching
+    const capturedLogs: CdpNetworkEntry[] = [];
+    const entries = Array.from(requests.entries());
+
+    for (const [reqId, data] of entries) {
+      const req = data.req || {};
+      const res = data.res || {};
+      const failed = data.failed || {};
+
+      const url = req.url || '';
+      if (!url || url.startsWith('data:') || url.startsWith('chrome-extension:')) continue;
+
+      const status = res.status || (failed.errorText ? 0 : 200);
+      const isFailed = status === 0 || status >= 400 || !!failed.errorText;
+
+      if (options.filter === 'failed' && !isFailed) continue;
+      if (options.urlPattern && !url.toLowerCase().includes(options.urlPattern.toLowerCase())) continue;
+
+      let bodySnippet: string | undefined;
+      // If failed or API endpoint, attempt to retrieve response body via CDP
+      if (status >= 400 || (res.mimeType && res.mimeType.includes('json'))) {
+        try {
+          const bodyResult: any = await chrome.debugger.sendCommand(debuggee, 'Network.getResponseBody', {
+            requestId: reqId,
+          });
+          if (bodyResult?.body) {
+            bodySnippet = sanitizePayloadSnippet(bodyResult.body, 400);
+          }
+        } catch (_) {
+          // Response body might not be available or already evicted
+        }
+      }
+
+      const durationMs = Math.round(performance.now() - data.start);
+      capturedLogs.push({
+        requestId: reqId,
+        url: sanitizeUrl(url),
+        method: (req.method || 'GET').toUpperCase(),
+        resourceType: res.mimeType || req.resourceType,
+        status,
+        statusText: res.statusText || (failed.errorText ? 'Failed' : 'OK'),
+        mimeType: res.mimeType,
+        protocol: res.protocol,
+        remoteIPAddress: res.remoteIPAddress,
+        errorText: failed.errorText,
+        durationMs,
+        timestamp: Date.now(),
+        responseHeaders: res.headers ? sanitizeHeaders(res.headers) : undefined,
+        responseBodySnippet: bodySnippet,
+      });
+    }
+
+    const limit = options.limit || 10;
+    const finalLogs = capturedLogs.slice(-limit);
+
+    return {
+      success: true,
+      logs: finalLogs,
+      message:
+        finalLogs.length === 0
+          ? `CDP Network session completed (${listenDuration}ms). No matching API requests captured.`
+          : `Captured ${finalLogs.length} kernel-level network requests via CDP (ephemeral session detached).`,
+    };
+  } catch (err: any) {
+    // If DevTools already attached or permission error, gracefully fallback
+    console.warn('[CDP Network] Fallback to in-page sniffer:', err?.message);
+    const fallback = await sniffTabNetwork(tabId, {
+      filter: options.filter,
+      urlPattern: options.urlPattern,
+      limit: options.limit,
+    });
+    return {
+      success: fallback.success,
+      logs: fallback.logs.map((l) => ({
+        requestId: l.id,
+        url: l.url,
+        method: l.method,
+        status: l.status,
+        statusText: l.statusText,
+        durationMs: l.durationMs,
+        timestamp: l.timestamp,
+        responseBodySnippet: l.responseSnippet,
+      })),
+      message: `CDP could not attach (${err?.message || 'DevTools busy'}). Used in-page sniffer fallback.`,
+    };
+  } finally {
+    chrome.debugger.onEvent.removeListener(eventListener);
+    try {
+      await chrome.debugger.detach(debuggee);
+    } catch (_) {}
+  }
+}
+
+/**
+ * Formats CDP network records for LLM observation context.
+ */
+export function formatCdpNetworkPrompt(logs: CdpNetworkEntry[]): string {
+  if (!logs || logs.length === 0) {
+    return 'No network events captured via CDP.';
+  }
+
+  const lines = logs.map((n, i) => {
+    const statusLabel =
+      n.status === 0
+        ? `🔴 [CDP NET ERROR: ${n.errorText || 'CONNECTION_FAILED'}]`
+        : n.status >= 400
+        ? `🔴 HTTP ${n.status} ${n.statusText || 'Error'}`
+        : `🟢 HTTP ${n.status} ${n.statusText || 'OK'}`;
+
+    let details = `${i + 1}. ${statusLabel} ${n.method} ${n.url} (${n.durationMs}ms)`;
+    if (n.protocol) {
+      details += ` [${n.protocol}]`;
+    }
+    if (n.mimeType) {
+      details += ` (${n.mimeType})`;
+    }
+    if (n.responseBodySnippet) {
+      details += `\n   Response: ${n.responseBodySnippet}`;
+    }
+    if (n.errorText) {
+      details += `\n   Net Error Detail: ${n.errorText}`;
+    }
+    return details;
+  });
+
+  return `[CDP Kernel Network Inspection (Token-Safe & Sanitized)]:\n${lines.join('\n\n')}`;
+}
+

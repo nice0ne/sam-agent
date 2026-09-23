@@ -25,6 +25,7 @@ import {
   FileSearch,
   Activity,
   Bug,
+  Radio,
 } from 'lucide-react';
 import type { ToolCallPart } from '../../types/agent';
 
@@ -75,6 +76,7 @@ const TOOL_METADATA: Record<
   ragSearch: { label: 'RAG File Search', activeLabel: 'Searching File Chunks', icon: FileSearch },
   sniffNetwork: { label: 'Sniffed Network APIs', activeLabel: 'Sniffing Network APIs', icon: Activity },
   readConsoleErrors: { label: 'Read Console Errors', activeLabel: 'Reading Console Errors', icon: Bug },
+  cdpInspectNetwork: { label: 'CDP Kernel Network Inspection', activeLabel: 'Inspecting CDP Network', icon: Radio },
   browserAction: { label: 'Browser action executed', activeLabel: 'Executing browser action', icon: Globe },
 };
 

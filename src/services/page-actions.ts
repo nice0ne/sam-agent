@@ -24,6 +24,8 @@ import {
   readTabConsoleErrors,
   formatNetworkLogsPrompt,
   formatConsoleErrorsPrompt,
+  cdpInspectNetwork,
+  formatCdpNetworkPrompt,
 } from './network-sniffer';
 
 export interface ActionAssertion {
@@ -221,6 +223,15 @@ export interface ReadConsoleErrorsAction {
   [key: string]: any;
 }
 
+export interface CdpInspectNetworkAction {
+  action: 'cdpInspectNetwork';
+  durationMs?: number;
+  filter?: 'all' | 'failed';
+  urlPattern?: string;
+  limit?: number;
+  [key: string]: any;
+}
+
 export type BrowserAction =
   | FillFieldAction
   | ClickAction
@@ -246,7 +257,8 @@ export type BrowserAction =
   | UpdateSubgoalAction
   | RagSearchAction
   | SniffNetworkAction
-  | ReadConsoleErrorsAction;
+  | ReadConsoleErrorsAction
+  | CdpInspectNetworkAction;
 
 export interface ActionResult {
   success: boolean;
@@ -2289,6 +2301,37 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
       target: action.level || 'error',
       message: `${consoleRes.message}\n\n${promptFormatted}`,
       data: { count: consoleRes.logs.length, logs: consoleRes.logs },
+      verified: true,
+    };
+  }
+
+  // 4g. CDP Deep Kernel Network Inspector action (ephemeral chrome.debugger session)
+  if (action.action === 'cdpInspectNetwork') {
+    let targetTabId = tabId;
+    if (!targetTabId || targetTabId <= 0) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      targetTabId = activeTab?.id || 0;
+    }
+    if (!targetTabId || targetTabId <= 0) {
+      return {
+        success: false,
+        action: 'cdpInspectNetwork',
+        message: 'Tidak ada tab aktif untuk CDP network inspection.',
+      };
+    }
+    const cdpRes = await cdpInspectNetwork(targetTabId, {
+      durationMs: action.durationMs || 2500,
+      filter: action.filter || 'all',
+      urlPattern: action.urlPattern,
+      limit: action.limit || 10,
+    });
+    const promptFormatted = formatCdpNetworkPrompt(cdpRes.logs);
+    return {
+      success: cdpRes.success,
+      action: 'cdpInspectNetwork',
+      target: action.urlPattern || action.filter || 'cdp-network',
+      message: `${cdpRes.message}\n\n${promptFormatted}`,
+      data: { count: cdpRes.logs.length, logs: cdpRes.logs },
       verified: true,
     };
   }
