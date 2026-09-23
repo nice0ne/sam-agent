@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, Key, Sparkles, Server, Check, ShieldCheck, Eye, EyeOff,
   Cpu, Wifi, AlertCircle, LoaderCircle, BrainCircuit, Database, Trash2,
-  FileCode, RotateCcw, ExternalLink, Zap, Scissors, Sliders, Globe, Brain
+  FileCode, RotateCcw, ExternalLink, Zap, Scissors, Sliders, Globe, Brain,
+  ChevronDown, ChevronsUpDown, FolderArchive
 } from 'lucide-react';
 import { useAppStore, STORAGE_KEYS } from '../../stores/useAppStore';
 import { getAllDomainMemories, clearDomainMemories } from '../../services/db';
@@ -110,6 +111,91 @@ const PROVIDERS: ProviderMeta[] = [
   },
 ];
 
+interface CollapsibleCategoryCardProps {
+  id: string;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  badgeVariant?: 'primary' | 'emerald' | 'amber' | 'blue' | 'muted';
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor?: string;
+  iconBg?: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}
+
+const CollapsibleCategoryCard: React.FC<CollapsibleCategoryCardProps> = ({
+  title,
+  subtitle,
+  badge,
+  badgeVariant = 'muted',
+  icon: Icon,
+  iconColor = 'text-primary',
+  iconBg = 'bg-primary/10 border-primary/20',
+  isOpen,
+  onToggle,
+  children,
+}) => {
+  const badgeColors = {
+    primary: 'bg-primary/10 text-primary border-primary/20',
+    emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+    muted: 'bg-muted text-muted-foreground border-border',
+  };
+
+  return (
+    <div
+      className={`rounded-xl border transition-all duration-200 overflow-hidden ${
+        isOpen
+          ? 'border-primary/40 bg-card/85 shadow-xs ring-1 ring-primary/10'
+          : 'border-border/80 bg-card/50 hover:bg-card/75 hover:border-border'
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between p-3.5 text-left transition-colors cursor-pointer select-none"
+        aria-expanded={isOpen}
+      >
+        <div className="flex items-center gap-3 min-w-0 pr-2">
+          <div className={`size-8 rounded-lg flex items-center justify-center shrink-0 border ${iconBg}`}>
+            <Icon className={`size-4 ${iconColor}`} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-xs text-foreground truncate">{title}</span>
+              {badge && (
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md border ${badgeColors[badgeVariant]}`}>
+                  {badge}
+                </span>
+              )}
+            </div>
+            {subtitle && (
+              <p className="text-[10px] text-muted-foreground truncate mt-0.5">{subtitle}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0 pl-1">
+          <ChevronDown
+            className={`size-4 text-muted-foreground transition-transform duration-200 ${
+              isOpen ? 'rotate-180 text-foreground' : ''
+            }`}
+          />
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="p-3.5 pt-0 border-t border-border/40 space-y-4 animate-in fade-in duration-150">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const SettingsView: React.FC = () => {
   const {
     provider,
@@ -174,6 +260,51 @@ export const SettingsView: React.FC = () => {
   const [webSearchProvider, setWebSearchProvider] = useState('auto');
   const [braveApiKey, setBraveApiKey] = useState('');
   const [tavilyApiKey, setTavilyApiKey] = useState('');
+
+  // Collapsible Category Cards State (Engine expanded by default)
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
+    engine: true,
+    soul: false,
+    optimization: false,
+    webSearch: false,
+    semanticMemory: false,
+    domainMemory: false,
+    backupRestore: false,
+    permissions: false,
+  });
+
+  const toggleCategory = (catId: string) => {
+    setExpandedCategories((prev) => ({
+      ...prev,
+      [catId]: !prev[catId],
+    }));
+  };
+
+  const handleExpandAll = () => {
+    setExpandedCategories({
+      engine: true,
+      soul: true,
+      optimization: true,
+      webSearch: true,
+      semanticMemory: true,
+      domainMemory: true,
+      backupRestore: true,
+      permissions: true,
+    });
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedCategories({
+      engine: false,
+      soul: false,
+      optimization: false,
+      webSearch: false,
+      semanticMemory: false,
+      domainMemory: false,
+      backupRestore: false,
+      permissions: false,
+    });
+  };
 
   const loadMemories = async () => {
     try {
@@ -598,554 +729,633 @@ export const SettingsView: React.FC = () => {
       </div>
 
       {/* Settings Content Scroll */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5 text-xs">
-        {/* Active Provider Selector */}
-        <div className="space-y-2">
-          <label className="block text-[11px] font-semibold text-foreground/90 uppercase tracking-wider">
-            Select Active AI Engine
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {PROVIDERS.map((p) => {
-              const isSelected = selectedProviderId === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => handleSelectProvider(p.id)}
-                  className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
-                    isSelected
-                      ? 'border-primary bg-primary/15 text-primary shadow-xs ring-1 ring-primary/30'
-                      : 'border-border bg-card/80 hover:bg-muted text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="font-semibold text-xs text-foreground">{p.name}</span>
-                    {isSelected && <Check className="size-3.5 text-primary" />}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground mt-1 truncate">
-                    {p.models.length} presets • BYOK
-                  </span>
-                </button>
-              );
-            })}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
+        {/* Category Controls Bar */}
+        <div className="flex items-center justify-between px-0.5 pb-0.5 text-xs select-none">
+          <span className="text-[11px] font-medium text-muted-foreground">
+            {Object.values(expandedCategories).filter(Boolean).length} dari 8 kategori terbuka
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExpandAll}
+              className="text-[11px] font-medium text-primary hover:underline cursor-pointer"
+            >
+              Buka Semua
+            </button>
+            <span className="text-muted-foreground/40">•</span>
+            <button
+              type="button"
+              onClick={handleCollapseAll}
+              className="text-[11px] font-medium text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              Tutup Semua
+            </button>
           </div>
         </div>
 
-        {/* Model Selector */}
-        <div className="p-3.5 rounded-xl border border-border bg-card/60 space-y-3 shadow-xs">
-          <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
-            <Cpu className="size-4 text-primary" />
-            <span>Model Configuration</span>
+        {/* 1. AI MODEL & ENGINE */}
+        <CollapsibleCategoryCard
+          id="engine"
+          title="AI Engine, Model & Credentials"
+          subtitle={`${currentProvider.name} • ${selectedModelId === 'custom-model' ? customModelInput || 'Custom Model' : selectedModelId}`}
+          badge="Active Engine"
+          badgeVariant="primary"
+          icon={Cpu}
+          iconColor="text-primary"
+          iconBg="bg-primary/10 border-primary/20"
+          isOpen={expandedCategories.engine}
+          onToggle={() => toggleCategory('engine')}
+        >
+          {/* Active Provider Selector */}
+          <div className="space-y-2 pt-1">
+            <label className="block text-[11px] font-semibold text-foreground/90 uppercase tracking-wider">
+              Select Active AI Engine
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {PROVIDERS.map((p) => {
+                const isSelected = selectedProviderId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => handleSelectProvider(p.id)}
+                    className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'border-primary bg-primary/15 text-primary shadow-xs ring-1 ring-primary/30'
+                        : 'border-border bg-card/80 hover:bg-muted text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="font-semibold text-xs text-foreground">{p.name}</span>
+                      {isSelected && <Check className="size-3.5 text-primary" />}
+                    </div>
+                    <span className="text-[10px] text-muted-foreground mt-1 truncate">
+                      {p.models.length} presets • BYOK
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[11px] text-muted-foreground font-medium">Model Variant</label>
-            <select
-              value={selectedModelId}
-              onChange={(e) => setSelectedModelId(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-            >
-              {currentProvider.models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} {m.reasoning ? '(Reasoning)' : ''}
-                </option>
-              ))}
-            </select>
+          {/* Model Selector */}
+          <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-3 shadow-2xs">
+            <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
+              <Cpu className="size-3.5 text-primary" />
+              <span>Model Configuration</span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] text-muted-foreground font-medium">Model Variant</label>
+              <select
+                value={selectedModelId}
+                onChange={(e) => setSelectedModelId(e.target.value)}
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              >
+                {currentProvider.models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} {m.reasoning ? '(Reasoning)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Custom Model ID Input */}
+            {selectedModelId === 'custom-model' && (
+              <div className="space-y-1.5 pt-1 animate-in fade-in">
+                <label className="text-[11px] text-muted-foreground font-medium">Custom Model Name / ID</label>
+                <input
+                  type="text"
+                  value={customModelInput}
+                  onChange={(e) => setCustomModelInput(e.target.value)}
+                  placeholder="e.g. qwen2.5-coder:14b, deepseek-r1, etc."
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+            )}
+
+            {/* Thinking Level for Reasoning Models */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
+                  <Sparkles className="size-3.5 text-amber-500" />
+                  <span>Thinking / Reasoning Effort</span>
+                </label>
+                <span className="text-[10px] font-mono capitalize px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                  {thinkingLevel}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(['none', 'low', 'medium', 'high'] as const).map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => setThinkingLevel(level)}
+                    className={`py-1.5 text-center text-[11px] font-medium rounded-md border capitalize transition-all cursor-pointer ${
+                      thinkingLevel === level
+                        ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+                        : 'border-border bg-background hover:bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* Custom Model ID Input for OpenAI Compatible */}
-          {selectedModelId === 'custom-model' && (
-            <div className="space-y-1.5 pt-1 animate-in fade-in">
-              <label className="text-[11px] text-muted-foreground font-medium">Custom Model Name / ID</label>
+          {/* API Credentials */}
+          <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-3 shadow-2xs">
+            <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
+              <Key className="size-3.5 text-primary" />
+              <span>API Credentials & Endpoint</span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] text-muted-foreground font-medium">API Key</label>
+              <div className="relative">
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={`Enter your ${currentProvider.name} API Key...`}
+                  className="w-full bg-background border border-border rounded-lg pl-3 pr-9 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey(!showKey)}
+                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  {showKey ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Keys are encrypted and stored locally in your browser via <code className="font-mono">chrome.storage.local</code>.
+              </p>
+            </div>
+
+            {/* Custom Base URL */}
+            <div className="space-y-1.5 pt-1">
+              <label className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+                <Server className="size-3 text-muted-foreground" />
+                <span>Base URL Endpoint</span>
+              </label>
               <input
                 type="text"
-                value={customModelInput}
-                onChange={(e) => setCustomModelInput(e.target.value)}
-                placeholder="e.g. qwen2.5-coder:14b, deepseek-r1, etc."
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="https://api.example.com/v1"
                 className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
-          )}
 
-          {/* Thinking Level for Reasoning Models */}
-          <div className="space-y-1.5 pt-1">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
-                <Sparkles className="size-3.5 text-amber-500" />
-                <span>Thinking / Reasoning Effort</span>
-              </label>
-              <span className="text-[10px] font-mono capitalize px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                {thinkingLevel}
-              </span>
-            </div>
-            <div className="grid grid-cols-4 gap-1.5">
-              {(['none', 'low', 'medium', 'high'] as const).map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => setThinkingLevel(level)}
-                  className={`py-1.5 text-center text-[11px] font-medium rounded-md border capitalize transition-all cursor-pointer ${
-                    thinkingLevel === level
-                      ? 'border-primary bg-primary text-primary-foreground shadow-xs'
-                      : 'border-border bg-background hover:bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {level}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* API Credentials */}
-        <div className="p-3.5 rounded-xl border border-border bg-card/60 space-y-3 shadow-xs">
-          <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
-            <Key className="size-4 text-primary" />
-            <span>API Credentials & Endpoint</span>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[11px] text-muted-foreground font-medium">API Key</label>
-            <div className="relative">
-              <input
-                type={showKey ? 'text' : 'password'}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={`Enter your ${currentProvider.name} API Key...`}
-                className="w-full bg-background border border-border rounded-lg pl-3 pr-9 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              />
+            {/* Test Connection Button & Result Box */}
+            <div className="pt-2 border-t border-border/40 space-y-2">
               <button
                 type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                onClick={handleTestConnection}
+                disabled={testStatus === 'testing'}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
               >
-                {showKey ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-              </button>
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              Keys are encrypted and stored locally in your browser via <code className="font-mono">chrome.storage.local</code>.
-            </p>
-          </div>
-
-          {/* Custom Base URL */}
-          <div className="space-y-1.5 pt-1">
-            <label className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
-              <Server className="size-3 text-muted-foreground" />
-              <span>Base URL Endpoint</span>
-            </label>
-            <input
-              type="text"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://api.example.com/v1"
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-
-          {/* Test Connection Button & Result Box */}
-          <div className="pt-2 border-t border-border/40 space-y-2">
-            <button
-              type="button"
-              onClick={handleTestConnection}
-              disabled={testStatus === 'testing'}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary font-medium text-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
-            >
-              {testStatus === 'testing' ? (
-                <>
-                  <LoaderCircle className="size-3.5 animate-spin" />
-                  <span>Testing Connection...</span>
-                </>
-              ) : (
-                <>
-                  <Wifi className="size-3.5" />
-                  <span>Test Connection ({currentProvider.name})</span>
-                </>
-              )}
-            </button>
-
-            {testStatus === 'success' && (
-              <div className="p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[11px] flex items-start gap-2 animate-in fade-in">
-                <Check className="size-3.5 mt-0.5 shrink-0" />
-                <span className="font-mono break-all">{testMessage}</span>
-              </div>
-            )}
-
-            {testStatus === 'error' && (
-              <div className="p-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-[11px] flex items-start gap-2 animate-in fade-in">
-                <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
-                <span className="font-mono break-all">{testMessage}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Agent Persona & Directives (soul.md) */}
-        <div className="p-3.5 rounded-xl border border-border bg-card/60 space-y-3 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
-              <FileCode className="size-4 text-primary" />
-              <span>Agent Persona & Directives (<code className="font-mono text-[11px] text-primary">soul.md</code>)</span>
-            </div>
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary/10 text-primary font-medium">
-              VFS Synced
-            </span>
-          </div>
-
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Customize the agent's identity, behavior rules, tone, and system directives. Injected dynamically into every turn and synced directly to <code className="font-mono text-foreground">/soul.md</code> in VFS.
-          </p>
-
-          <div className="relative">
-            <textarea
-              value={soulContent}
-              onChange={(e) => setSoulContent(e.target.value)}
-              rows={8}
-              placeholder="# SOUL.MD - Agent Persona & Directives..."
-              className="w-full bg-background border border-border rounded-lg p-2.5 text-[11px] font-mono leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y"
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSaveSoul}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-lg shadow-xs hover:opacity-90 active:scale-95 transition-all cursor-pointer"
-              >
-                {isSoulSaved ? (
+                {testStatus === 'testing' ? (
                   <>
-                    <Check className="size-3 text-emerald-300" />
-                    <span>Saved!</span>
+                    <LoaderCircle className="size-3.5 animate-spin" />
+                    <span>Testing Connection...</span>
                   </>
                 ) : (
                   <>
-                    <ShieldCheck className="size-3" />
-                    <span>Save Soul</span>
+                    <Wifi className="size-3.5" />
+                    <span>Test Connection ({currentProvider.name})</span>
                   </>
                 )}
               </button>
 
-              <button
-                type="button"
-                onClick={handleResetSoul}
-                className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-lg transition-colors cursor-pointer"
-                title="Reset soul.md to default"
-              >
-                <RotateCcw className="size-3" />
-                <span>Reset Default</span>
-              </button>
+              {testStatus === 'success' && (
+                <div className="p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[11px] flex items-start gap-2 animate-in fade-in">
+                  <Check className="size-3.5 mt-0.5 shrink-0" />
+                  <span className="font-mono break-all">{testMessage}</span>
+                </div>
+              )}
+
+              {testStatus === 'error' && (
+                <div className="p-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-[11px] flex items-start gap-2 animate-in fade-in">
+                  <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
+                  <span className="font-mono break-all">{testMessage}</span>
+                </div>
+              )}
             </div>
-
-            <button
-              type="button"
-              onClick={handleOpenSoulInEditor}
-              className="flex items-center gap-1 text-[11px] text-primary hover:underline font-medium cursor-pointer"
-              title="Open full editor with syntax highlighting"
-            >
-              <ExternalLink className="size-3" />
-              <span>Open in VFS Code Editor</span>
-            </button>
           </div>
-        </div>
+        </CollapsibleCategoryCard>
 
-        {/* Token & Context Optimization (RTK & Ponytail) */}
-        <div className="p-3.5 rounded-xl border border-border bg-card/60 space-y-3 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
-              <Zap className="size-4 text-amber-500" />
-              <span>Token & Context Optimization</span>
-            </div>
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-500 font-medium">
-              Save 40-70% Tokens
-            </span>
-          </div>
-
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Intelligent context pruning algorithms designed for multi-step browser tasks and continuous agent loops.
-          </p>
-
+        {/* 2. AGENT PERSONA & SOUL */}
+        <CollapsibleCategoryCard
+          id="soul"
+          title="Agent Persona & Directives (soul.md)"
+          subtitle="Identitas, pedoman gaya komunikasi, dan instruksi permanen sistem"
+          badge="VFS Synced"
+          badgeVariant="emerald"
+          icon={FileCode}
+          iconColor="text-emerald-500"
+          iconBg="bg-emerald-500/10 border-emerald-500/20"
+          isOpen={expandedCategories.soul}
+          onToggle={() => toggleCategory('soul')}
+        >
           <div className="space-y-3 pt-1">
-            {/* RTK Toggle */}
-            <div className="p-2.5 rounded-lg border border-border/80 bg-background/60 flex items-start justify-between gap-3">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5">
-                  <Scissors className="size-3.5 text-indigo-500 shrink-0" />
-                  <span className="font-semibold text-xs text-foreground">Round-Trip Knowledge (RTK) Trimming</span>
-                </div>
-                <p className="text-[10px] text-muted-foreground leading-normal">
-                  Replaces verbose past action JSON dumps with compact status ledgers and trims redundant DOM dumps from earlier steps.
-                </p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Customize the agent's identity, behavior rules, tone, and system directives. Injected dynamically into every turn and synced directly to <code className="font-mono text-foreground">/soul.md</code> in VFS.
+            </p>
+
+            <div className="relative">
+              <textarea
+                value={soulContent}
+                onChange={(e) => setSoulContent(e.target.value)}
+                rows={8}
+                placeholder="# SOUL.MD - Agent Persona & Directives..."
+                className="w-full bg-background border border-border rounded-lg p-2.5 text-[11px] font-mono leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveSoul}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-lg shadow-xs hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+                >
+                  {isSoulSaved ? (
+                    <>
+                      <Check className="size-3 text-emerald-300" />
+                      <span>Saved!</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="size-3" />
+                      <span>Save Soul</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResetSoul}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-lg transition-colors cursor-pointer"
+                  title="Reset soul.md to default"
+                >
+                  <RotateCcw className="size-3" />
+                  <span>Reset Default</span>
+                </button>
               </div>
 
               <button
                 type="button"
-                role="switch"
-                aria-checked={enableRtk}
-                onClick={handleToggleRtk}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  enableRtk ? 'bg-primary' : 'bg-muted-foreground/30'
-                }`}
+                onClick={handleOpenSoulInEditor}
+                className="flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer"
               >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                    enableRtk ? 'translate-x-4' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* Ponytail Toggle */}
-            <div className="p-2.5 rounded-lg border border-border/80 bg-background/60 flex items-start justify-between gap-3">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5">
-                  <Sliders className="size-3.5 text-emerald-500 shrink-0" />
-                  <span className="font-semibold text-xs text-foreground">Ponytail Context Compression</span>
-                </div>
-                <p className="text-[10px] text-muted-foreground leading-normal">
-                  Retains initial prompt instructions (Head) and recent observations (Tail) 100% intact, condensing intermediate turns into a concise milestone recap.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                role="switch"
-                aria-checked={enablePonytail}
-                onClick={handleTogglePonytail}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  enablePonytail ? 'bg-primary' : 'bg-muted-foreground/30'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                    enablePonytail ? 'translate-x-4' : 'translate-x-0'
-                  }`}
-                />
+                <span>Open in Full Editor</span>
+                <ExternalLink className="size-2.5" />
               </button>
             </div>
           </div>
-        </div>
+        </CollapsibleCategoryCard>
 
-        {/* Fast Web Search Engine */}
-        <div className="p-3.5 rounded-xl border border-border bg-card/60 space-y-3 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
-              <Globe className="size-4 text-primary" />
-              <span>Fast Web Search Engine</span>
-            </div>
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-500 font-medium">
-              Zero-Config Active
-            </span>
-          </div>
+        {/* 3. TOKEN & CONTEXT OPTIMIZATION */}
+        <CollapsibleCategoryCard
+          id="optimization"
+          title="Token & Context Optimization"
+          subtitle="Round-Trip Knowledge (RTK) & Ponytail Compression"
+          badge="Save 40-70% Tokens"
+          badgeVariant="amber"
+          icon={Zap}
+          iconColor="text-amber-500"
+          iconBg="bg-amber-500/10 border-amber-500/20"
+          isOpen={expandedCategories.optimization}
+          onToggle={() => toggleCategory('optimization')}
+        >
+          <div className="space-y-3 pt-1">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Intelligent context pruning algorithms designed for multi-step browser tasks and continuous agent loops.
+            </p>
 
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Powers the <code className="font-mono text-primary">searchWeb</code> action block. Searches the live web in ~300ms without opening or cluttering browser tabs. Uses DuckDuckGo by default (free, no API key required).
-          </p>
-
-          <div className="space-y-2">
-            <div className="space-y-1.5">
-              <label className="text-[11px] text-muted-foreground font-medium">Search Provider</label>
-              <select
-                value={webSearchProvider}
-                onChange={(e) => setWebSearchProvider(e.target.value)}
-                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-              >
-                <option value="auto">Auto (DuckDuckGo or configured API key)</option>
-                <option value="duckduckgo">DuckDuckGo (Free, Zero-Config)</option>
-                <option value="brave">Brave Search API (Requires API Key)</option>
-                <option value="tavily">Tavily AI Search (Requires API Key)</option>
-              </select>
-            </div>
-
-            {(webSearchProvider === 'brave' || webSearchProvider === 'auto') && (
-              <div className="space-y-1.5 pt-1">
-                <label className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
-                  <span>Brave Search API Key (Optional)</span>
-                  <a href="https://brave.com/search/api/" target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                    Get Key <ExternalLink className="size-2.5" />
-                  </a>
-                </label>
-                <input
-                  type="password"
-                  value={braveApiKey}
-                  onChange={(e) => setBraveApiKey(e.target.value)}
-                  placeholder="BSA..."
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
-            )}
-
-            {(webSearchProvider === 'tavily' || webSearchProvider === 'auto') && (
-              <div className="space-y-1.5 pt-1">
-                <label className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
-                  <span>Tavily API Key (Optional)</span>
-                  <a href="https://tavily.com" target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                    Get Key <ExternalLink className="size-2.5" />
-                  </a>
-                </label>
-                <input
-                  type="password"
-                  value={tavilyApiKey}
-                  onChange={(e) => setTavilyApiKey(e.target.value)}
-                  placeholder="tvly-..."
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Autonomous Domain Memory & Self-Learning */}
-        <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
-              <BrainCircuit className="size-3.5 text-indigo-500" />
-              <span>Autonomous Domain Memory (Self-Trained)</span>
-            </div>
-            {memories.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearMemories}
-                className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-destructive hover:bg-destructive/10 rounded transition-colors cursor-pointer"
-                title="Clear domain memories"
-              >
-                <Trash2 className="size-3" />
-                <span>Reset Memory</span>
-              </button>
-            )}
-          </div>
-
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            The agent continuously learns and persists verified selectors, rich-text editor quirks, and site navigation patterns directly in your local IndexedDB.
-          </p>
-
-          {memories.length === 0 ? (
-            <div className="px-3 py-2 rounded-lg bg-background/50 border border-border text-[11px] text-muted-foreground italic flex items-center gap-2">
-              <Database className="size-3.5 text-muted-foreground shrink-0" />
-              <span>No domain patterns learned yet. As you automate tasks on web pages, the agent will remember successful selectors automatically.</span>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-              {memories.map((m) => {
-                const selectorCount = Object.keys(m.formSelectors || {}).length;
-                return (
-                  <div
-                    key={m.domain}
-                    className="p-2.5 rounded-lg bg-background/80 border border-border text-xs space-y-1"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-foreground font-mono">{m.domain}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium">
-                        {m.successfulActionsCount} verified actions
-                      </span>
-                    </div>
-                    {m.title && <div className="text-[11px] text-muted-foreground truncate">{m.title}</div>}
-                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground pt-0.5">
-                      <span>{selectorCount} mapped selector{selectorCount === 1 ? '' : 's'}</span>
-                      {m.learnedCaveats.length > 0 && (
-                        <span>• {m.learnedCaveats.length} learned quirk{m.learnedCaveats.length === 1 ? '' : 's'}</span>
-                      )}
-                    </div>
+            <div className="space-y-2.5">
+              {/* RTK Toggle */}
+              <div className="p-2.5 rounded-lg border border-border/80 bg-background/60 flex items-start justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <Scissors className="size-3.5 text-indigo-500 shrink-0" />
+                    <span className="font-semibold text-xs text-foreground">Round-Trip Knowledge (RTK) Trimming</span>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  <p className="text-[10px] text-muted-foreground leading-normal">
+                    Replaces verbose past action JSON dumps with compact status ledgers and trims redundant DOM dumps from earlier steps.
+                  </p>
+                </div>
 
-        {/* Episodic & Semantic Memory Manager */}
-        <div className="p-3.5 rounded-xl border border-border bg-card/60 space-y-3 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
-              <Brain className="size-4 text-primary" />
-              <span>Episodic & Semantic Memory</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-400 font-mono">
-                {episodicMemories.length} item{episodicMemories.length === 1 ? '' : 's'}
-              </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={enableRtk}
+                  onClick={handleToggleRtk}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    enableRtk ? 'bg-primary' : 'bg-muted-foreground/30'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      enableRtk ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Ponytail Toggle */}
+              <div className="p-2.5 rounded-lg border border-border/80 bg-background/60 flex items-start justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <Sliders className="size-3.5 text-emerald-500 shrink-0" />
+                    <span className="font-semibold text-xs text-foreground">Ponytail Context Compression</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-normal">
+                    Retains initial prompt instructions (Head) and recent observations (Tail) 100% intact, condensing intermediate turns into a concise milestone recap.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={enablePonytail}
+                  onClick={handleTogglePonytail}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    enablePonytail ? 'bg-primary' : 'bg-muted-foreground/30'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      enablePonytail ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
+          </div>
+        </CollapsibleCategoryCard>
+
+        {/* 4. FAST WEB SEARCH ENGINE */}
+        <CollapsibleCategoryCard
+          id="webSearch"
+          title="Fast Web Search Engine"
+          subtitle={`Provider: ${webSearchProvider === 'auto' ? 'Auto (DuckDuckGo/API)' : webSearchProvider}`}
+          badge={webSearchProvider === 'duckduckgo' ? 'Free (No Key)' : 'Zero-Config'}
+          badgeVariant="blue"
+          icon={Globe}
+          iconColor="text-blue-500"
+          iconBg="bg-blue-500/10 border-blue-500/20"
+          isOpen={expandedCategories.webSearch}
+          onToggle={() => toggleCategory('webSearch')}
+        >
+          <div className="space-y-3 pt-1">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Powers the <code className="font-mono text-primary">searchWeb</code> action block. Searches the live web in ~300ms without opening or cluttering browser tabs. Uses DuckDuckGo by default (free, no API key required).
+            </p>
+
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <label className="text-[11px] text-muted-foreground font-medium">Search Provider</label>
+                <select
+                  value={webSearchProvider}
+                  onChange={(e) => setWebSearchProvider(e.target.value)}
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                >
+                  <option value="auto">Auto (DuckDuckGo or configured API key)</option>
+                  <option value="duckduckgo">DuckDuckGo (Free, Zero-Config)</option>
+                  <option value="brave">Brave Search API (Requires API Key)</option>
+                  <option value="tavily">Tavily AI Search (Requires API Key)</option>
+                </select>
+              </div>
+
+              {(webSearchProvider === 'brave' || webSearchProvider === 'auto') && (
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+                    <span>Brave Search API Key (Optional)</span>
+                    <a href="https://brave.com/search/api/" target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                      Get Key <ExternalLink className="size-2.5" />
+                    </a>
+                  </label>
+                  <input
+                    type="password"
+                    value={braveApiKey}
+                    onChange={(e) => setBraveApiKey(e.target.value)}
+                    placeholder="BSA..."
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              )}
+
+              {(webSearchProvider === 'tavily' || webSearchProvider === 'auto') && (
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[11px] text-muted-foreground font-medium flex items-center justify-between">
+                    <span>Tavily API Key (Optional)</span>
+                    <a href="https://tavily.com" target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                      Get Key <ExternalLink className="size-2.5" />
+                    </a>
+                  </label>
+                  <input
+                    type="password"
+                    value={tavilyApiKey}
+                    onChange={(e) => setTavilyApiKey(e.target.value)}
+                    placeholder="tvly-..."
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </CollapsibleCategoryCard>
+
+        {/* 5. EPISODIC & SEMANTIC MEMORY */}
+        <CollapsibleCategoryCard
+          id="semanticMemory"
+          title="Episodic & Semantic Memory"
+          subtitle={`${episodicMemories.length} fakta & instruksi tersimpan`}
+          badge="Local BM25"
+          badgeVariant="blue"
+          icon={Brain}
+          iconColor="text-indigo-500"
+          iconBg="bg-indigo-500/10 border-indigo-500/20"
+          isOpen={expandedCategories.semanticMemory}
+          onToggle={() => toggleCategory('semanticMemory')}
+        >
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Persistent facts, user preferences, and instructions remembered across conversations. Indexed offline in your browser using local BM25 scoring.
+              </p>
+              {episodicMemories.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearEpisodicMemories}
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-rose-500 transition-colors cursor-pointer shrink-0 ml-2"
+                  title="Clear all stored memories"
+                >
+                  <Trash2 className="size-3" />
+                  <span>Clear All</span>
+                </button>
+              )}
+            </div>
+
             {episodicMemories.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearEpisodicMemories}
-                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-rose-500 transition-colors cursor-pointer"
-                title="Clear all stored memories"
-              >
-                <Trash2 className="size-3" />
-                <span>Clear All</span>
-              </button>
+              <input
+                type="text"
+                placeholder="Filter memories by keyword..."
+                value={memoryFilter}
+                onChange={(e) => setMemoryFilter(e.target.value)}
+                className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            )}
+
+            {episodicMemories.length === 0 ? (
+              <div className="px-3 py-2 rounded-lg bg-background/50 border border-border text-[11px] text-muted-foreground italic flex items-center gap-2">
+                <Brain className="size-3.5 text-muted-foreground shrink-0" />
+                <span>No memories stored yet. Tell the agent "ingat bahwa...", "catat preferensi saya...", or emit a remember action to store permanent facts.</span>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {episodicMemories
+                  .filter((m) =>
+                    !memoryFilter ||
+                    m.content.toLowerCase().includes(memoryFilter.toLowerCase()) ||
+                    m.category.toLowerCase().includes(memoryFilter.toLowerCase())
+                  )
+                  .map((m) => (
+                    <div
+                      key={m.id}
+                      className="p-2.5 rounded-lg bg-background/80 border border-border text-xs flex items-start justify-between gap-2"
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
+                            {m.category}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            accessed {m.accessCount || 1}x
+                          </span>
+                        </div>
+                        <p className="text-foreground leading-relaxed break-words">{m.content}</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteEpisodicMemory(m.id)}
+                        className="p-1 rounded text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer shrink-0 transition-colors"
+                        title="Delete this memory"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+              </div>
             )}
           </div>
+        </CollapsibleCategoryCard>
 
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Persistent facts, user preferences, and instructions remembered across conversations. Indexed offline in your browser using local BM25 scoring.
-          </p>
-
-          {episodicMemories.length > 0 && (
-            <input
-              type="text"
-              placeholder="Filter memories by keyword..."
-              value={memoryFilter}
-              onChange={(e) => setMemoryFilter(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          )}
-
-          {episodicMemories.length === 0 ? (
-            <div className="px-3 py-2 rounded-lg bg-background/50 border border-border text-[11px] text-muted-foreground italic flex items-center gap-2">
-              <Brain className="size-3.5 text-muted-foreground shrink-0" />
-              <span>No memories stored yet. Tell the agent "ingat bahwa...", "catat preferensi saya...", or emit a remember action to store permanent facts.</span>
+        {/* 6. AUTONOMOUS DOMAIN MEMORY */}
+        <CollapsibleCategoryCard
+          id="domainMemory"
+          title="Autonomous Domain Memory (Self-Trained)"
+          subtitle={`${memories.length} domain web terpetakan`}
+          badge="Autonomous"
+          badgeVariant="emerald"
+          icon={BrainCircuit}
+          iconColor="text-purple-500"
+          iconBg="bg-purple-500/10 border-purple-500/20"
+          isOpen={expandedCategories.domainMemory}
+          onToggle={() => toggleCategory('domainMemory')}
+        >
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                The agent continuously learns and persists verified selectors, rich-text editor quirks, and site navigation patterns directly in your local IndexedDB.
+              </p>
+              {memories.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearMemories}
+                  className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-destructive hover:bg-destructive/10 rounded transition-colors cursor-pointer shrink-0 ml-2"
+                  title="Clear domain memories"
+                >
+                  <Trash2 className="size-3" />
+                  <span>Reset Memory</span>
+                </button>
+              )}
             </div>
-          ) : (
-            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-              {episodicMemories
-                .filter((m) =>
-                  !memoryFilter ||
-                  m.content.toLowerCase().includes(memoryFilter.toLowerCase()) ||
-                  m.category.toLowerCase().includes(memoryFilter.toLowerCase())
-                )
-                .map((m) => (
-                  <div
-                    key={m.id}
-                    className="p-2.5 rounded-lg bg-background/80 border border-border text-xs flex items-start justify-between gap-2"
-                  >
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
-                          {m.category}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          accessed {m.accessCount || 1}x
+
+            {memories.length === 0 ? (
+              <div className="px-3 py-2 rounded-lg bg-background/50 border border-border text-[11px] text-muted-foreground italic flex items-center gap-2">
+                <Database className="size-3.5 text-muted-foreground shrink-0" />
+                <span>No domain patterns learned yet. As you automate tasks on web pages, the agent will remember successful selectors automatically.</span>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {memories.map((m) => {
+                  const selectorCount = Object.keys(m.formSelectors || {}).length;
+                  return (
+                    <div
+                      key={m.domain}
+                      className="p-2.5 rounded-lg bg-background/80 border border-border text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-foreground font-mono">{m.domain}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium">
+                          {m.successfulActionsCount} verified actions
                         </span>
                       </div>
-                      <p className="text-foreground leading-relaxed break-words">{m.content}</p>
+                      {m.title && <div className="text-[11px] text-muted-foreground truncate">{m.title}</div>}
+                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground pt-0.5">
+                        <span>{selectorCount} mapped selector{selectorCount === 1 ? '' : 's'}</span>
+                        {m.learnedCaveats.length > 0 && (
+                          <span>• {m.learnedCaveats.length} learned quirk{m.learnedCaveats.length === 1 ? '' : 's'}</span>
+                        )}
+                      </div>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteEpisodicMemory(m.id)}
-                      className="p-1 rounded text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer shrink-0 transition-colors"
-                      title="Delete this memory"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </div>
-                ))}
-            </div>
-          )}
-        </div>
-
-        {/* Backup, Export & Restore Manager */}
-        <BackupRestoreCard />
-
-        {/* Browser Automation & Security Info */}
-        <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 space-y-2">
-          <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
-            <ShieldCheck className="size-3.5 text-emerald-500" />
-            <span>Autonomous Browser Permissions</span>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            The agent uses the Chrome DevTools Protocol (CDP 1.3) to interact with tabs, click elements, capture screenshots, and execute JavaScript securely.
+        </CollapsibleCategoryCard>
+
+        {/* 7. DATA BACKUP, EXPORT & RESTORE */}
+        <CollapsibleCategoryCard
+          id="backupRestore"
+          title="Data Backup, Export & Restore"
+          subtitle="Ekspor/Impor JSON, enkripsi AES-256 & reset pabrik"
+          badge="JSON v1"
+          badgeVariant="primary"
+          icon={FolderArchive}
+          iconColor="text-primary"
+          iconBg="bg-primary/10 border-primary/20"
+          isOpen={expandedCategories.backupRestore}
+          onToggle={() => toggleCategory('backupRestore')}
+        >
+          <BackupRestoreCard borderless={true} />
+        </CollapsibleCategoryCard>
+
+        {/* 8. AUTONOMOUS BROWSER PERMISSIONS */}
+        <CollapsibleCategoryCard
+          id="permissions"
+          title="Autonomous Browser Permissions"
+          subtitle="Chrome DevTools Protocol (CDP 1.3)"
+          badge="Secure"
+          badgeVariant="emerald"
+          icon={ShieldCheck}
+          iconColor="text-emerald-500"
+          iconBg="bg-emerald-500/10 border-emerald-500/20"
+          isOpen={expandedCategories.permissions}
+          onToggle={() => toggleCategory('permissions')}
+        >
+          <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">
+            Ekstensi menggunakan Chrome DevTools Protocol (CDP 1.3) dan Chrome Extension APIs untuk berinteraksi dengan tab, mengklik elemen, menangkap visual SoM, dan menjalankan automasi secara aman langsung di browser pengguna tanpa perantara cloud pihak ketiga.
           </p>
-        </div>
+        </CollapsibleCategoryCard>
       </div>
     </div>
   );

@@ -34,7 +34,11 @@ import {
   executeFactoryReset,
 } from '../../services/backup-restore';
 
-export const BackupRestoreCard: React.FC = () => {
+export interface BackupRestoreCardProps {
+  borderless?: boolean;
+}
+
+export const BackupRestoreCard: React.FC<BackupRestoreCardProps> = ({ borderless = false }) => {
   const [activeTab, setActiveTab] = useState<'export' | 'import'>('export');
 
   // Export State
@@ -208,17 +212,18 @@ export const BackupRestoreCard: React.FC = () => {
     unlockedPayload?.manifest || restorePreview?.manifest;
 
   return (
-    <div className="p-3.5 rounded-xl border border-border bg-card/60 space-y-4 shadow-xs">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
-          <FolderArchive className="size-4 text-primary" />
-          <span>Cadangan, Ekspor & Pemulihan Data (Backup & Restore)</span>
+    <div className={borderless ? "space-y-4 pt-1" : "p-3.5 rounded-xl border border-border bg-card/60 space-y-4 shadow-xs"}>
+      {!borderless && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-foreground font-semibold text-xs">
+            <FolderArchive className="size-4 text-primary" />
+            <span>Cadangan, Ekspor & Pemulihan Data (Backup & Restore)</span>
+          </div>
+          <span className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 text-primary font-medium">
+            Format JSON v1
+          </span>
         </div>
-        <span className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 text-primary font-medium">
-          Format JSON v1
-        </span>
-      </div>
+      )}
 
       <p className="text-[11px] text-muted-foreground leading-relaxed">
         Cadangkan seluruh percakapan, berkas kerja Virtual File System (VFS), memori belajar agen,
