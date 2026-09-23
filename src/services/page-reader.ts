@@ -7,6 +7,7 @@
 
 import { getDomainMemory } from './db';
 import type { DomainMemoryRecord } from '../types/agent';
+import { installSnifferInTab } from './network-sniffer';
 
 export interface FormFieldInfo {
   selector: string;
@@ -375,6 +376,10 @@ export async function getActivePageContext(): Promise<PageContext | null> {
   }
 
   try {
+    if (tab.id) {
+      installSnifferInTab(tab.id).catch(() => {});
+    }
+
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: inPageDOMInspector,

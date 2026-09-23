@@ -380,6 +380,24 @@ When you need to read, analyze, summarize, or answer questions from a large file
 \`\`\`
 - You can answer based on the retrieved excerpts, saving 80–90% of token usage!
 
+16. PASSIVE NETWORK & CONSOLE ERROR SNIFFER:
+When an action fails, a form submission produces no visible response, an API request fails, or a web application crashes/spins indefinitely:
+- Call \`sniffNetwork\` to inspect recent XHR / Fetch API requests, HTTP status codes, error payloads, and endpoint durations:
+\`\`\`action
+[
+  { "action": "sniffNetwork", "filter": "failed", "limit": 10 }
+]
+\`\`\`
+  - \`filter\`: \`"failed"\` (default: returns HTTP 4xx, 5xx, or network drops) or \`"all"\` (returns recent API calls).
+  - \`urlPattern\`: optional substring filter (e.g. \`"/api/auth"\` or \`"graphql"\`).
+- Call \`readConsoleErrors\` to diagnose JavaScript exceptions, unhandled Promise rejections, and runtime warnings on the active page:
+\`\`\`action
+[
+  { "action": "readConsoleErrors", "level": "error", "limit": 10 }
+]
+\`\`\`
+- All sensitive tokens, Bearer auth headers, and cookies are automatically redacted for privacy and token efficiency!
+
 ### AUTONOMOUS MULTI-STEP EXECUTION:
 You operate in an autonomous execution loop! When you emit an action block, your action is executed immediately in the browser, the page state updates, and you will automatically receive an observation with the new page content and links in the next turn.
 Therefore:
@@ -915,7 +933,11 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'ragSearch'
+      act.action === 'sniffNetwork'
+        ? 'sniffNetwork'
+        : act.action === 'readConsoleErrors'
+        ? 'readConsoleErrors'
+        : act.action === 'ragSearch'
         ? 'ragSearch'
         : act.action === 'remember'
         ? 'remember'
@@ -1459,6 +1481,12 @@ ${BASE_CAPABILITIES_PROMPT}`;
 
     const actionSummary = executedResults
       .map((r) => {
+        if (r.action === 'sniffNetwork') {
+          return `- [sniffNetwork]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
+        }
+        if (r.action === 'readConsoleErrors') {
+          return `- [readConsoleErrors]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
+        }
         if (r.action === 'ragSearch') {
           return `- [ragSearch (${r.target || 'file'})]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
         }

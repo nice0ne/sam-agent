@@ -23,6 +23,8 @@ import {
   ListChecks,
   CheckCheck,
   FileSearch,
+  Activity,
+  Bug,
 } from 'lucide-react';
 import type { ToolCallPart } from '../../types/agent';
 
@@ -71,6 +73,8 @@ const TOOL_METADATA: Record<
   createPlan: { label: 'Created Task Plan', activeLabel: 'Creating Task Plan', icon: ListChecks },
   updateSubgoal: { label: 'Updated Subgoal', activeLabel: 'Updating Subgoal', icon: CheckCheck },
   ragSearch: { label: 'RAG File Search', activeLabel: 'Searching File Chunks', icon: FileSearch },
+  sniffNetwork: { label: 'Sniffed Network APIs', activeLabel: 'Sniffing Network APIs', icon: Activity },
+  readConsoleErrors: { label: 'Read Console Errors', activeLabel: 'Reading Console Errors', icon: Bug },
   browserAction: { label: 'Browser action executed', activeLabel: 'Executing browser action', icon: Globe },
 };
 

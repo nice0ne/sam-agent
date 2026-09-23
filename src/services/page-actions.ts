@@ -19,6 +19,12 @@ import { createDocArtifact } from './doc-generator';
 import { executeWebSearch, formatWebSearchResults } from './web-search';
 import { addMemory, deleteMemory, searchMemories } from './semantic-memory';
 import { formatRagSearchPrompt } from './local-rag';
+import {
+  sniffTabNetwork,
+  readTabConsoleErrors,
+  formatNetworkLogsPrompt,
+  formatConsoleErrorsPrompt,
+} from './network-sniffer';
 
 export interface ActionAssertion {
   urlMatches?: string;
@@ -200,6 +206,21 @@ export interface RagSearchAction {
   [key: string]: any;
 }
 
+export interface SniffNetworkAction {
+  action: 'sniffNetwork';
+  filter?: 'all' | 'failed';
+  urlPattern?: string;
+  limit?: number;
+  [key: string]: any;
+}
+
+export interface ReadConsoleErrorsAction {
+  action: 'readConsoleErrors';
+  level?: 'all' | 'error' | 'warn';
+  limit?: number;
+  [key: string]: any;
+}
+
 export type BrowserAction =
   | FillFieldAction
   | ClickAction
@@ -223,7 +244,9 @@ export type BrowserAction =
   | ForgetAction
   | CreatePlanAction
   | UpdateSubgoalAction
-  | RagSearchAction;
+  | RagSearchAction
+  | SniffNetworkAction
+  | ReadConsoleErrorsAction;
 
 export interface ActionResult {
   success: boolean;
@@ -2209,6 +2232,65 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
         error: err.message,
       };
     }
+  }
+
+  // 4e. Passive Network Sniffer action
+  if (action.action === 'sniffNetwork') {
+    let targetTabId = tabId;
+    if (!targetTabId || targetTabId <= 0) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      targetTabId = activeTab?.id || 0;
+    }
+    if (!targetTabId || targetTabId <= 0) {
+      return {
+        success: false,
+        action: 'sniffNetwork',
+        message: 'Tidak ada tab aktif untuk membaca network requests.',
+      };
+    }
+    const sniffRes = await sniffTabNetwork(targetTabId, {
+      filter: action.filter || 'all',
+      urlPattern: action.urlPattern,
+      limit: action.limit || 10,
+    });
+    const promptFormatted = formatNetworkLogsPrompt(sniffRes.logs);
+    return {
+      success: sniffRes.success,
+      action: 'sniffNetwork',
+      target: action.urlPattern || action.filter || 'network',
+      message: `${sniffRes.message}\n\n${promptFormatted}`,
+      data: { count: sniffRes.logs.length, logs: sniffRes.logs },
+      verified: true,
+    };
+  }
+
+  // 4f. Runtime Console Errors and Exceptions Sniffer action
+  if (action.action === 'readConsoleErrors') {
+    let targetTabId = tabId;
+    if (!targetTabId || targetTabId <= 0) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      targetTabId = activeTab?.id || 0;
+    }
+    if (!targetTabId || targetTabId <= 0) {
+      return {
+        success: false,
+        action: 'readConsoleErrors',
+        message: 'Tidak ada tab aktif untuk membaca runtime console errors.',
+      };
+    }
+    const consoleRes = await readTabConsoleErrors(targetTabId, {
+      level: action.level || 'error',
+      limit: action.limit || 10,
+    });
+    const promptFormatted = formatConsoleErrorsPrompt(consoleRes.logs);
+    return {
+      success: consoleRes.success,
+      action: 'readConsoleErrors',
+      target: action.level || 'error',
+      message: `${consoleRes.message}\n\n${promptFormatted}`,
+      data: { count: consoleRes.logs.length, logs: consoleRes.logs },
+      verified: true,
+    };
   }
 
   // 5. In-page DOM actions (fill, click, select, eval)
