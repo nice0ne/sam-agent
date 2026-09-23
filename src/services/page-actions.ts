@@ -289,6 +289,15 @@ export interface SaveProfileVaultAction {
   [key: string]: any;
 }
 
+export interface ConfirmAction {
+  action: 'confirmAction' | 'requestApproval';
+  title: string;
+  description: string;
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+  targetAction?: BrowserAction;
+  [key: string]: any;
+}
+
 export type BrowserAction =
   | FillFieldAction
   | ClickAction
@@ -320,7 +329,8 @@ export type BrowserAction =
   | ScheduleTaskAction
   | ListScheduledTasksAction
   | FillProfileAction
-  | SaveProfileVaultAction;
+  | SaveProfileVaultAction
+  | ConfirmAction;
 
 export interface ActionResult {
   success: boolean;
@@ -2556,6 +2566,33 @@ export async function executePageAction(tabId: number, action: BrowserAction): P
         error: err.message,
       };
     }
+  }
+
+  // 4l. Human-in-the-Loop Sensitive Action Guard
+  if (action.action === 'confirmAction' || action.action === 'requestApproval') {
+    const risk = action.riskLevel || 'high';
+    const riskBadge =
+      risk === 'critical'
+        ? '🛑 [CRITICAL RISK]'
+        : risk === 'high'
+        ? '⚠️ [HIGH RISK]'
+        : risk === 'medium'
+        ? '🟡 [MEDIUM RISK]'
+        : 'ℹ️ [NOTICE]';
+
+    return {
+      success: true,
+      action: 'confirmAction',
+      target: action.title || 'Sensitive Action Approval',
+      message: `${riskBadge} **Persetujuan Manusia Diperlukan**: "${action.title}"\n${action.description}\n\nAksi ini ditahan demi keamanan (Human-in-the-Loop). Menunggu persetujuan atau konfirmasi pengguna sebelum melanjutkan eksekusi sensitif.`,
+      data: {
+        title: action.title,
+        description: action.description,
+        riskLevel: risk,
+        targetAction: action.targetAction,
+      },
+      verified: true,
+    };
   }
 
   // 5. In-page DOM actions (fill, click, select, eval)

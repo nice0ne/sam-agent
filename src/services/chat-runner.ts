@@ -469,6 +469,21 @@ When you need to fill out online registration forms, job applications, or checko
 ]
 \`\`\`
 
+20. HUMAN-IN-THE-LOOP SENSITIVE ACTION GUARD:
+When an action involves financial transactions (e.g. "Bayar", "Pay Now", "Transfer", "Checkout"), account deletion, or high-risk destructive operations:
+- DO NOT execute the final destructive click autonomously without confirmation!
+- Instead, invoke \`confirmAction\` to pause and request human approval:
+\`\`\`action
+[
+  {
+    "action": "confirmAction",
+    "title": "Konfirmasi Pembayaran Rp 150.000",
+    "description": "Agent telah mengisi formulir checkout dan siap menekan tombol 'Bayar Sekarang'. Mohon konfirmasi sebelum transaksi diproses.",
+    "riskLevel": "high"
+  }
+]
+\`\`\`
+
 ### AUTONOMOUS MULTI-STEP EXECUTION:
 You operate in an autonomous execution loop! When you emit an action block, your action is executed immediately in the browser, the page state updates, and you will automatically receive an observation with the new page content and links in the next turn.
 Therefore:
@@ -999,7 +1014,9 @@ async function parseAndExecuteActions(
       act.action === 'listScheduledTasks' ||
       (act as any).action === 'listSchedules' ||
       act.action === 'saveProfileVault' ||
-      (act as any).action === 'updateProfile';
+      (act as any).action === 'updateProfile' ||
+      act.action === 'confirmAction' ||
+      (act as any).action === 'requestApproval';
     const isNavAction = act.action === 'navigate' || act.action === 'openTab' || (act as any).action === 'newTab';
     const isTabAction = act.action === 'switchTab' || act.action === 'closeTab';
     const isToolAction = act.action === 'runTool';
@@ -1012,7 +1029,9 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'fillProfile' || (act as any).action === 'autoFillForm'
+      act.action === 'confirmAction' || (act as any).action === 'requestApproval'
+        ? 'confirmAction'
+        : act.action === 'fillProfile' || (act as any).action === 'autoFillForm'
         ? 'fillProfile'
         : act.action === 'saveProfileVault' || (act as any).action === 'updateProfile'
         ? 'saveProfileVault'
@@ -1572,6 +1591,9 @@ ${BASE_CAPABILITIES_PROMPT}`;
 
     const actionSummary = executedResults
       .map((r) => {
+        if (r.action === 'confirmAction' || (r as any).action === 'requestApproval') {
+          return `- [confirmAction]: PENDING APPROVAL\n${r.message}`;
+        }
         if (r.action === 'fillProfile' || (r as any).action === 'autoFillForm') {
           return `- [fillProfile]: ${r.success ? 'SUCCESS' : 'FAILED'}\n${r.message}`;
         }

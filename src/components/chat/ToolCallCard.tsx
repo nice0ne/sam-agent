@@ -31,6 +31,7 @@ import {
   Clock,
   UserCheck,
   Lock,
+  ShieldAlert,
 } from 'lucide-react';
 import type { ToolCallPart } from '../../types/agent';
 
@@ -87,6 +88,7 @@ const TOOL_METADATA: Record<
   listScheduledTasks: { label: 'Listed Scheduled Tasks', activeLabel: 'Listing Scheduled Tasks', icon: Clock },
   fillProfile: { label: 'Smart Form Auto-Fill', activeLabel: 'Auto-Filling Form', icon: UserCheck },
   saveProfileVault: { label: 'Saved Encrypted Profile', activeLabel: 'Encrypting Profile', icon: Lock },
+  confirmAction: { label: 'Sensitive Action Guard', activeLabel: 'Awaiting Human Approval', icon: ShieldAlert },
   browserAction: { label: 'Browser action executed', activeLabel: 'Executing browser action', icon: Globe },
 };
 
