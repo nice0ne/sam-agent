@@ -1,4 +1,5 @@
 import { listVfsFiles, saveVfsFile, getVfsFile, deleteVfsFile } from './vfs';
+import { seedDefaultPresets } from './presets';
 
 export interface UserToolMeta {
   name: string;
@@ -75,6 +76,7 @@ export function parseToolJSDoc(code: string): {
  * and merge with enabled status stored in chrome.storage.local
  */
 export async function listUserTools(): Promise<UserToolMeta[]> {
+  await seedDefaultPresets();
   const files = await listVfsFiles('/tools');
   const jsFiles = files.filter(
     (f) => f.path.startsWith('/tools/') && f.path.endsWith('.js')

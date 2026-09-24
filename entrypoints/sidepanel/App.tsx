@@ -16,6 +16,7 @@ import { LiveActivityBanner } from '../../src/components/chat/LiveActivityBanner
 import { FilesView } from '../../src/components/files/FilesView';
 import { ToolStudioView } from '../../src/components/tools/ToolStudioView';
 import { SchedulerView } from '../../src/components/scheduler/SchedulerView';
+import { seedDefaultPresets } from '../../src/services/presets';
 
 export const App: React.FC = () => {
   const {
@@ -46,6 +47,7 @@ export const App: React.FC = () => {
   // 1. Initialize settings & Heartbeat
   useEffect(() => {
     loadSettings();
+    seedDefaultPresets();
     const interval = setInterval(() => {
       chrome.runtime.sendMessage({ type: 'sidepanel-heartbeat' }).catch(() => {});
     }, 500);

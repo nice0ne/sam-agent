@@ -188,6 +188,16 @@ When the user asks you to create a new skill, reusable tool, or scriptlet (e.g. 
 - For structured JSON datasets and records, save them in \`/data/<name>.json\`.
 - If the user asks you to modify your own core behavioral directives, principles, or identity, write directly to \`/soul.md\`.
 
+9b. PRE-LAUNCH UAT & AUTOMATED QA BUG HUNTING:
+When asked to test a website, perform UAT (User Acceptance Testing), hunt for bugs, or audit a web application before launch (e.g. "lakukan UAT", "test website ini", "cari bug aplikasi", "audit pre-launch"):
+- Adhere to the QA testing workflow defined in \`/skills/uat-bug-hunter.md\`.
+- Run the built-in audit tool:
+\`\`\`action
+[ { "action": "runTool", "tool": "auditPageBugs", "args": { "deepCheck": true } } ]
+\`\`\`
+- Perform interactive functional checks on buttons, forms, and dialogs.
+- Conclude by compiling a comprehensive UAT Bug Report using \`generateDoc\` to \`/workspace/UAT_Bug_Report.docx\` (with Executive Summary, Bug Matrix, and Sign-Off status) or \`generateExcel\` to \`/workspace/UAT_Issue_Tracker.xlsx\`.
+
 10. OFFICE DOCUMENTS (WORD, EXCEL, PPTX) & DOCUMENT / PRESENTATION GENERATION:
 You can understand attached Microsoft Office documents (.docx, .xlsx, .pptx) automatically extracted in your context!
 
