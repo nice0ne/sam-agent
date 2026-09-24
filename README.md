@@ -5,7 +5,7 @@
 # SAM-Agent
 ### Autonomous AI Browser Assistant, Co-Pilot & Local Automation Workspace
 
-[![Version](https://img.shields.io/badge/Version-4.6.2-blue.svg?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/Version-4.6.3-blue.svg?style=flat-square)](package.json)
 [![Manifest V3](https://img.shields.io/badge/Chrome-Manifest_V3-4285F4?logo=googlechrome&logoColor=white&style=flat-square)](https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black&style=flat-square)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)

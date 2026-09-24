@@ -32,6 +32,12 @@ export function parseImageDataUrl(dataUrlOrBase64: string, fallbackMime = 'image
 const BASE_CAPABILITIES_PROMPT = `
 You have the power to control browser tabs, navigate websites, inspect content, fill forms, click buttons, play videos, and save files to the Virtual File System (VFS).
 
+### CRITICAL AUTONOMOUS EXECUTION PRINCIPLE (MANDATORY):
+- When given a task or goal, NEVER stop after one or two steps merely to narrate plans or ask the user "apakah ingin dilanjutkan?".
+- You MUST drive the task forward autonomously by emitting \`\`\`action\`\`\` blocks continuously until the entire objective is 100% completed!
+- If you explain a plan or intermediate findings, ALWAYS include the next \`\`\`action\`\`\` block in the SAME response so execution never stalls.
+- Only omit action blocks when the ultimate goal is fully accomplished and you are presenting the final summary or report.
+
 ### BROWSER & VFS CAPABILITIES (ACTION BLOCKS):
 Whenever the user asks you to perform an action (such as opening a website, browsing, searching, clicking, playing media, or creating files), you MUST emit an action block using markdown code fence:
 
@@ -1434,15 +1440,40 @@ export async function runChatStream(options: ChatRunOptions): Promise<void> {
   }).filter((m) => m.content.trim().length > 0 || (m.images && m.images.length > 0));
 
   // Autonomous Execution Loop
-  const isContinuousGoal =
-    prompt.toLowerCase().includes('jalankan terus') ||
-    prompt.toLowerCase().includes('sampai ada perintah stop') ||
-    prompt.toLowerCase().includes('tanya jawab') ||
-    prompt.toLowerCase().includes('terus menerus') ||
-    prompt.toLowerCase().includes('continuous') ||
-    prompt.toLowerCase().includes('until stop');
+  const promptLower = prompt.toLowerCase();
+  const isChatGptLoop =
+    (promptLower.includes('tanya jawab') || promptLower.includes('chatgpt')) &&
+    (promptLower.includes('jalankan terus') ||
+      promptLower.includes('sampai ada perintah stop') ||
+      promptLower.includes('terus menerus') ||
+      promptLower.includes('continuous') ||
+      promptLower.includes('until stop'));
 
-  const MAX_AGENT_STEPS = isContinuousGoal ? 60 : 6;
+  const isAutonomousGoal =
+    promptLower.includes('jalankan terus') ||
+    promptLower.includes('sampai ada perintah stop') ||
+    promptLower.includes('terus menerus') ||
+    promptLower.includes('continuous') ||
+    promptLower.includes('until stop') ||
+    promptLower.includes('sampai selesai') ||
+    promptLower.includes('hingga selesai') ||
+    promptLower.includes('sampai tuntas') ||
+    promptLower.includes('hingga tuntas') ||
+    promptLower.includes('tanpa henti') ||
+    promptLower.includes('tanpa berhenti') ||
+    promptLower.includes('mandiri') ||
+    promptLower.includes('autonomously') ||
+    promptLower.includes('autonomous') ||
+    promptLower.includes('uat') ||
+    promptLower.includes('audit') ||
+    promptLower.includes('cari bug') ||
+    promptLower.includes('test website') ||
+    promptLower.includes('testing') ||
+    promptLower.includes('scrape') ||
+    promptLower.includes('selesaikan');
+
+  const isContinuousGoal = isChatGptLoop || isAutonomousGoal;
+  const MAX_AGENT_STEPS = isContinuousGoal ? 40 : 15;
   let currentStep = 1;
 
   while (currentStep <= MAX_AGENT_STEPS) {
@@ -1584,7 +1615,7 @@ ${BASE_CAPABILITIES_PROMPT}`;
 
     // If no actions were emitted:
     if (executedResults.length === 0) {
-      if (isContinuousGoal && currentStep < MAX_AGENT_STEPS) {
+      if (isChatGptLoop && currentStep < MAX_AGENT_STEPS) {
         contextMessages.push({
           role: 'assistant',
           content: accumulated,
@@ -1596,6 +1627,63 @@ ${BASE_CAPABILITIES_PROMPT}`;
         currentStep++;
         continue;
       }
+
+      // Autonomous Auto-Nudge: Check if the model merely narrated intermediate thoughts or plans without emitting an action
+      const textLower = accumulated.toLowerCase();
+      const indicatesContinuation =
+        textLower.includes('selanjutnya') ||
+        textLower.includes('berikutnya') ||
+        textLower.includes('akan ') ||
+        textLower.includes('sekarang saya') ||
+        textLower.includes('tahap 2') ||
+        textLower.includes('tahap 3') ||
+        textLower.includes('langkah 2') ||
+        textLower.includes('langkah 3') ||
+        textLower.includes('next step') ||
+        textLower.includes('proceed to') ||
+        textLower.includes('i will now') ||
+        textLower.includes('tahap selanjutnya') ||
+        textLower.includes('apakah mau') ||
+        textLower.includes('apakah anda ingin') ||
+        textLower.includes('ingin saya lanjutkan');
+
+      const isActionTask =
+        isAutonomousGoal ||
+        promptLower.includes('test') ||
+        promptLower.includes('uat') ||
+        promptLower.includes('cari') ||
+        promptLower.includes('audit') ||
+        promptLower.includes('buka') ||
+        promptLower.includes('isi') ||
+        promptLower.includes('click') ||
+        promptLower.includes('scrape') ||
+        promptLower.includes('jalankan');
+
+      const taskExplicitlyFinished =
+        textLower.includes('seluruh pengujian telah selesai') ||
+        textLower.includes('tugas telah selesai') ||
+        textLower.includes('task completed') ||
+        textLower.includes('goal achieved') ||
+        textLower.includes('laporan telah berhasil dibuat') ||
+        textLower.includes('selesai diputar');
+
+      if (
+        !taskExplicitlyFinished &&
+        (indicatesContinuation || (isActionTask && currentStep < 4)) &&
+        currentStep < MAX_AGENT_STEPS
+      ) {
+        contextMessages.push({
+          role: 'assistant',
+          content: accumulated,
+        });
+        contextMessages.push({
+          role: 'user',
+          content: `[System Auto-Nudge]: You described intermediate steps, plans, or observations, but you did NOT emit an \`\`\`action\`\`\` block. As an autonomous browser agent, NEVER stop mid-task or ask the user "apakah mau dilanjutkan?". Please immediately emit the required \`\`\`action\`\`\` block to execute the next step for: "${prompt}". Only omit action blocks when the ultimate goal is 100% complete and you are delivering the final conclusion/report.`,
+        });
+        currentStep++;
+        continue;
+      }
+
       break;
     }
 
@@ -1729,13 +1817,15 @@ ${BASE_CAPABILITIES_PROMPT}`;
       })
       .join('\n\n');
 
-    const nextObservationPrompt = isContinuousGoal
+    const nextObservationPrompt = isChatGptLoop
       ? `[Observation / Results from Step ${currentStep}]:\n${actionSummary}\n\nThe user requested a continuous Q&A session with ChatGPT UNTIL THEY CLICK STOP. ChatGPT has completed its answer on the active page. Please inspect the updated page context to read ChatGPT's latest reply, formulate your next insightful follow-up question based on it, and immediately emit an action block to send it:\n\`\`\`action\n[\n  { "action": "fill", "selector": "#prompt-textarea", "value": "Your next follow-up question...", "submit": true }\n]\n\`\`\`\nKeep the continuous Q&A cycle active without stopping!`
-      : `[Observation / Results from Step ${currentStep}]:\n${actionSummary}\n\nThe browser tab has executed the action(s). ${
-          attachedImages
-            ? 'A visual Set-of-Marks screenshot has been attached showing numbered element badges ([1], [2], [3]...). You can directly call `clickTag(tag)` or `fillTag(tag, value)` to interact with elements by number!'
-            : `Please inspect the updated page context and proceed autonomously to complete the user's request: "${prompt}".`
-        } When finished (e.g. video is playing or goal achieved), summarize your actions without emitting further action blocks.`;
+      : `[Observation / Results from Step ${currentStep}]:\n${actionSummary}\n\n` +
+        (attachedImages
+          ? `A visual Set-of-Marks screenshot has been attached showing numbered element badges ([1], [2], [3]...). You can directly call \`clickTag(tag)\` or \`fillTag(tag, value)\` to interact with elements by number!\n`
+          : '') +
+        (isAutonomousGoal
+          ? `[AUTONOMOUS DIRECTIVE]: You are running in autonomous execution mode. Continue driving forward step-by-step toward completing the user's goal: "${prompt}". Do NOT stop or ask for confirmation at intermediate steps. Inspect the updated page context and immediately emit the next \`\`\`action\`\`\` block. Only conclude without action blocks when the entire goal has been 100% achieved.`
+          : `Please inspect the updated page context and proceed autonomously to complete the user's request: "${prompt}". When finished (e.g. video is playing or goal achieved), summarize your actions without emitting further action blocks.`);
 
     contextMessages.push({
       role: 'user',
