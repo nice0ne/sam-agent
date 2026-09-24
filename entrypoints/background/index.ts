@@ -2,7 +2,7 @@ import { listScheduledTasks, syncAllTaskAlarms } from '../../src/services/schedu
 import { executeScheduledTask } from '../../src/services/scheduler-runner';
 
 export default defineBackground(() => {
-  console.log('[SAM-Agent Modern UI] Background service worker initialized.');
+  console.log('[SAM-Agent] Background service worker initialized.');
 
   // Sync scheduled task alarms on startup and installation
   chrome.runtime.onStartup.addListener(() => {

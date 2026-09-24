@@ -13,7 +13,7 @@ export default defineConfig({
     },
   }),
   manifest: {
-    name: 'SAM-Agent: AI Browser Assistant (Modern UI)',
+    name: 'SAM-Agent: AI Browser Assistant',
     description: 'Autonomous browser agent featuring multi-provider LLM support, CDP automation, and Virtual File System.',
     version: '4.6.3',
     manifest_version: 3,
