@@ -5,7 +5,7 @@
 # SAM-Agent
 ### Autonomous AI Browser Assistant, Co-Pilot & Local Automation Workspace
 
-[![Version](https://img.shields.io/badge/Version-4.6.3-blue.svg?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/Version-4.6.4-blue.svg?style=flat-square)](package.json)
 [![Manifest V3](https://img.shields.io/badge/Chrome-Manifest_V3-4285F4?logo=googlechrome&logoColor=white&style=flat-square)](https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black&style=flat-square)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
@@ -31,9 +31,12 @@ Unlike superficial chatbots, SAM-Agent can **inspect deep DOM trees**, **execute
 
 ---
 
-## 🚀 What's New in v4.6.1
+## 🚀 What's New in v4.6.4
 
-- 🗂️ **Collapsible Accordion Settings Suite**: 8 modular category cards with live counter, instant "Expand All" / "Collapse All" controls, and seamless configuration for AI Engine, Soul, Optimization, Web Search, Memory, Domain Caveats, Backup, and Permissions.
+- 🔔 **GitHub Release Auto-Update Checker & Notification UI (v4.6.4)**: Automatically polls GitHub releases for new extension versions, showing real-time notification banner, header rocket pill, and direct download shortcut to GitHub Releases.
+- 🔄 **Autonomous Auto-Nudge & Resilient Execution Loop (v4.6.3)**: Background auto-nudging prevents agent stalling mid-task when LLM outputs thoughts without actions; expanded multi-step quota to 40 steps.
+- 🧪 **Pre-Launch UAT & Bug Hunter Studio (v4.6.2)**: Automated DOM & responsiveness audit (`/tools/auditPageBugs.js`), broken link/media sniffer, and complete QA testing SOP (`/skills/uat-bug-hunter.md`).
+- 🗂️ **Collapsible Accordion Settings Suite (v4.6.1)**: 8 modular category cards with live counter, instant "Expand All" / "Collapse All" controls, and seamless configuration for AI Engine, Soul, Optimization, Web Search, Memory, Domain Caveats, Backup, and Permissions.
 - 🛡️ **Full Data & Config Backup, Export & Encrypted Restore (v4.6.0)**: Quick JSON backup or complete `.zip` workspace archive with optional **AES-GCM 256-bit passphrase encryption**, granular restore options, atomic database transactions, and emergency factory reset.
 - 📊 **Dedicated Excel (.xlsx) Spreadsheet Studio (v4.5.1)**: Native `generateExcel` tool using SheetJS, multi-sheet workbook navigation, real-time cell search, column sorting, pagination, and instant CSV export.
 - 🔒 **Human-in-the-Loop Sensitive Action Guard (v4.5.0)**: Real-time risk detection modal before executing sensitive actions (financial checkouts, deletions, destructive form submissions).

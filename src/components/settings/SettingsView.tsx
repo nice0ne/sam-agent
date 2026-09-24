@@ -3,7 +3,7 @@ import {
   ArrowLeft, Key, Sparkles, Server, Check, ShieldCheck, Eye, EyeOff,
   Cpu, Wifi, AlertCircle, LoaderCircle, BrainCircuit, Database, Trash2,
   FileCode, RotateCcw, ExternalLink, Zap, Scissors, Sliders, Globe, Brain,
-  ChevronDown, ChevronsUpDown, FolderArchive
+  ChevronDown, ChevronsUpDown, FolderArchive, Rocket, RefreshCw
 } from 'lucide-react';
 import { useAppStore, STORAGE_KEYS } from '../../stores/useAppStore';
 import { getAllDomainMemories, clearDomainMemories } from '../../services/db';
@@ -21,6 +21,7 @@ import {
   clearAllMemories,
 } from '../../services/semantic-memory';
 import { BackupRestoreCard } from './BackupRestoreCard';
+import { checkForUpdates, openReleasesPage, getCurrentVersion, UpdateInfo } from '../../services/update-checker';
 
 interface ProviderMeta {
   id: string;
@@ -261,6 +262,22 @@ export const SettingsView: React.FC = () => {
   const [braveApiKey, setBraveApiKey] = useState('');
   const [tavilyApiKey, setTavilyApiKey] = useState('');
 
+  // Update Checker state
+  const [updateState, setUpdateState] = useState<UpdateInfo | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+
+  const handleCheckUpdates = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      const res = await checkForUpdates(true);
+      setUpdateState(res);
+    } catch (err) {
+      console.warn('[SettingsView] Check update error:', err);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
   // Collapsible Category Cards State (Engine expanded by default)
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     engine: true,
@@ -345,6 +362,10 @@ export const SettingsView: React.FC = () => {
         if (res.tavilyApiKey) setTavilyApiKey(res.tavilyApiKey);
       });
     }
+
+    checkForUpdates(false)
+      .then((info) => setUpdateState(info))
+      .catch(() => {});
   }, []);
 
   const handleDeleteEpisodicMemory = async (id: string) => {
@@ -1339,22 +1360,85 @@ export const SettingsView: React.FC = () => {
           <BackupRestoreCard borderless={true} />
         </CollapsibleCategoryCard>
 
-        {/* 8. AUTONOMOUS BROWSER PERMISSIONS */}
+        {/* 8. AUTONOMOUS BROWSER PERMISSIONS & APP UPDATES */}
         <CollapsibleCategoryCard
           id="permissions"
-          title="Autonomous Browser Permissions"
-          subtitle="Chrome DevTools Protocol (CDP 1.3)"
-          badge="Secure"
-          badgeVariant="emerald"
+          title="Permissions & App Updates"
+          subtitle="CDP 1.3 & GitHub Release Checker"
+          badge={updateState?.hasUpdate ? `v${updateState.latestVersion} Available` : 'v' + getCurrentVersion()}
+          badgeVariant={updateState?.hasUpdate ? 'blue' : 'emerald'}
           icon={ShieldCheck}
           iconColor="text-emerald-500"
           iconBg="bg-emerald-500/10 border-emerald-500/20"
           isOpen={expandedCategories.permissions}
           onToggle={() => toggleCategory('permissions')}
         >
-          <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">
-            Ekstensi menggunakan Chrome DevTools Protocol (CDP 1.3) dan Chrome Extension APIs untuk berinteraksi dengan tab, mengklik elemen, menangkap visual SoM, dan menjalankan automasi secara aman langsung di browser pengguna tanpa perantara cloud pihak ketiga.
-          </p>
+          <div className="space-y-3 pt-1">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Ekstensi menggunakan Chrome DevTools Protocol (CDP 1.3) dan Chrome Extension APIs untuk berinteraksi dengan tab, mengklik elemen, menangkap visual SoM, dan menjalankan automasi secara aman langsung di browser pengguna tanpa perantara cloud pihak ketiga.
+            </p>
+
+            {/* Version & Updates Box */}
+            <div className="pt-2 border-t border-border/60 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Rocket className="size-3.5 text-primary" />
+                  <span>Pembaruan Versi Extension</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-muted font-mono text-[10px] text-muted-foreground font-medium">
+                  Terpasang: v{getCurrentVersion()}
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-xl border border-border/60 bg-muted/30 flex items-center justify-between gap-2">
+                <div className="min-w-0 text-xs">
+                  {isCheckingUpdate ? (
+                    <p className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
+                      <LoaderCircle className="size-3.5 animate-spin text-primary" />
+                      <span>Memeriksa rilis terbaru di GitHub...</span>
+                    </p>
+                  ) : updateState?.hasUpdate ? (
+                    <div>
+                      <p className="text-blue-500 font-medium text-[11px] flex items-center gap-1">
+                        <span>🚀 Tersedia versi baru: <b>v{updateState.latestVersion}</b></span>
+                      </p>
+                      <p className="text-[10px] text-muted-foreground truncate max-w-56">
+                        {updateState.releaseName || 'Pembaruan tersedia di GitHub Releases.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-emerald-500 font-medium text-[11px] flex items-center gap-1">
+                      <Check className="size-3" />
+                      <span>Versi Anda sudah yang terbaru (v{getCurrentVersion()}).</span>
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {updateState?.hasUpdate && (
+                    <button
+                      type="button"
+                      onClick={() => openReleasesPage(updateState.releaseUrl)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-[11px] font-medium transition-colors shadow-2xs cursor-pointer"
+                    >
+                      <span>Lihat Rilis</span>
+                      <ExternalLink className="size-3" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleCheckUpdates}
+                    disabled={isCheckingUpdate}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+                    title="Periksa rilis terbaru di GitHub"
+                  >
+                    <RefreshCw className={`size-3 text-muted-foreground ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+                    <span>Cek Update</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </CollapsibleCategoryCard>
       </div>
     </div>

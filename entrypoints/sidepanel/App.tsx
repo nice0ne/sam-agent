@@ -17,6 +17,7 @@ import { FilesView } from '../../src/components/files/FilesView';
 import { ToolStudioView } from '../../src/components/tools/ToolStudioView';
 import { SchedulerView } from '../../src/components/scheduler/SchedulerView';
 import { seedDefaultPresets } from '../../src/services/presets';
+import { UpdateBanner } from '../../src/components/chat/UpdateBanner';
 
 export const App: React.FC = () => {
   const {
@@ -144,6 +145,7 @@ export const App: React.FC = () => {
         title={activeThread?.title || 'SAM-Agent'}
         tokenUsage={activeThread?.tokenUsage}
       />
+      <UpdateBanner />
       <ActiveTabStrip />
 
       <main className="flex-1 overflow-y-auto px-4 py-3 space-y-4 scroll-smooth">

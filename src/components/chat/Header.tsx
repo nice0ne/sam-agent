@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Bot, Plus, Settings, Zap, Moon, Sun, History,
-  FolderTree, Wrench, CalendarClock, MoreVertical
+  FolderTree, Wrench, CalendarClock, MoreVertical, Rocket, ExternalLink
 } from 'lucide-react';
 import { useAppStore } from '../../stores/useAppStore';
+import { checkForUpdates, openReleasesPage, UpdateInfo } from '../../services/update-checker';
 
 interface HeaderProps {
   title: string;
@@ -29,7 +30,19 @@ export const Header: React.FC<HeaderProps> = ({ title, tokenUsage }) => {
 
   const [isDark, setIsDark] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Check for new version release in background
+    checkForUpdates(false)
+      .then((info) => {
+        if (info.hasUpdate) {
+          setUpdateInfo(info);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     // Check saved theme from storage
@@ -86,8 +99,19 @@ export const Header: React.FC<HeaderProps> = ({ title, tokenUsage }) => {
           <span className="absolute -bottom-0.5 -right-0.5 size-1.5 rounded-full bg-emerald-500 ring-2 ring-card animate-pulse" />
         </div>
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
             <h1 className="text-xs font-semibold truncate text-foreground tracking-tight">{title}</h1>
+            {updateInfo?.hasUpdate && (
+              <button
+                type="button"
+                onClick={() => openReleasesPage(updateInfo.releaseUrl)}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-500 hover:bg-blue-500/25 border border-blue-500/30 text-[9px] font-semibold transition-all active:scale-95 cursor-pointer shadow-2xs shrink-0"
+                title={`Tersedia rilis v${updateInfo.latestVersion}! Klik untuk buka GitHub Releases`}
+              >
+                <Rocket className="size-2.5" />
+                <span>v{updateInfo.latestVersion}</span>
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono">
             <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-primary/15 text-primary font-semibold capitalize text-[9px] border border-primary/25">
@@ -138,6 +162,26 @@ export const Header: React.FC<HeaderProps> = ({ title, tokenUsage }) => {
           {/* Clean Dropdown Popover */}
           {isMenuOpen && (
             <div className="absolute right-0 top-full mt-1.5 w-48 bg-card border border-border rounded-xl shadow-xl py-1 z-50 text-xs animate-in fade-in zoom-in-95 duration-150">
+              {updateInfo?.hasUpdate && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      openReleasesPage(updateInfo.releaseUrl);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-left bg-blue-500/10 hover:bg-blue-500/15 text-blue-500 transition-colors cursor-pointer font-medium"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Rocket className="size-3.5" />
+                      <span>Update v{updateInfo.latestVersion}</span>
+                    </span>
+                    <ExternalLink className="size-3" />
+                  </button>
+                  <div className="my-1 border-t border-border/60" />
+                </>
+              )}
+
               <button
                 type="button"
                 onClick={() => handleAction(navigateToFiles)}
