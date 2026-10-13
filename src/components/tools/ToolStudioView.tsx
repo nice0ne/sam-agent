@@ -13,6 +13,7 @@ import {
   FileCode,
   CheckCircle2,
   Sparkles,
+  CircleDot,
 } from 'lucide-react';
 import {
   listUserTools,
@@ -23,6 +24,8 @@ import {
 } from '../../services/tool-registry';
 import { useAppStore } from '../../stores/useAppStore';
 import { TestRunModal } from './TestRunModal';
+import { WorkflowReviewModal } from './WorkflowReviewModal';
+import { RecordedAction } from '../../../entrypoints/workflow-recorder.content/types';
 
 export const ToolStudioView: React.FC = () => {
   const { setView, activeThreadId, navigateToChat, navigateToThreads } = useAppStore();
@@ -31,6 +34,13 @@ export const ToolStudioView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Workflow Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedStepCount, setRecordedStepCount] = useState(0);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewActions, setReviewActions] = useState<RecordedAction[]>([]);
+  const [reviewInitialUrl, setReviewInitialUrl] = useState('');
 
   // Modals state
   const [activeTestTool, setActiveTestTool] = useState<UserToolMeta | null>(null);
@@ -57,7 +67,80 @@ export const ToolStudioView: React.FC = () => {
   useEffect(() => {
     setIsLoading(true);
     loadTools().finally(() => setIsLoading(false));
+
+    // Check if recording is active or review pending
+    if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+      chrome.storage.session.get(['active_workflow_recording', 'last_finished_workflow'], (res) => {
+        if (res?.active_workflow_recording?.status === 'recording') {
+          setIsRecording(true);
+          setRecordedStepCount(res.active_workflow_recording.actions?.length || 0);
+        }
+        if (res?.last_finished_workflow?.actions?.length) {
+          setReviewActions(res.last_finished_workflow.actions);
+          setReviewInitialUrl(res.last_finished_workflow.initialUrl || '');
+          setIsReviewModalOpen(true);
+          chrome.storage.session.remove(['last_finished_workflow']);
+        }
+      });
+    }
+
+    // Message listener for recording events
+    const onRuntimeMessage = (msg: any) => {
+      if (msg.type === 'WORKFLOW_RECORDING_STEP') {
+        setIsRecording(true);
+        setRecordedStepCount(msg.stepCount || 0);
+      } else if (msg.type === 'WORKFLOW_RECORDING_READY_FOR_REVIEW') {
+        setIsRecording(false);
+        setRecordedStepCount(0);
+        setReviewActions(msg.actions || []);
+        setReviewInitialUrl(msg.initialUrl || '');
+        setIsReviewModalOpen(true);
+      } else if (msg.type === 'WORKFLOW_RECORDING_ABORTED') {
+        setIsRecording(false);
+        setRecordedStepCount(0);
+      }
+    };
+
+    if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener(onRuntimeMessage);
+    }
+
+    return () => {
+      if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+        chrome.runtime.onMessage.removeListener(onRuntimeMessage);
+      }
+    };
   }, []);
+
+  const handleStartRecording = async () => {
+    try {
+      setIsRecording(true);
+      setRecordedStepCount(0);
+      await chrome.runtime.sendMessage({ type: 'START_WORKFLOW_RECORDING' });
+    } catch (err) {
+      console.error('[ToolStudioView] Failed to start workflow recording:', err);
+    }
+  };
+
+  const handleStopRecordingFromPanel = async () => {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.session) {
+        const stored = await chrome.storage.session.get(['active_workflow_recording']);
+        if (stored?.active_workflow_recording) {
+          const acts = stored.active_workflow_recording.actions || [];
+          const initUrl = stored.active_workflow_recording.initialUrl || '';
+          await chrome.storage.session.remove(['active_workflow_recording']);
+          setIsRecording(false);
+          setRecordedStepCount(0);
+          setReviewActions(acts);
+          setReviewInitialUrl(initUrl);
+          setIsReviewModalOpen(true);
+        }
+      }
+    } catch (err) {
+      console.error('[ToolStudioView] Error stopping recording:', err);
+    }
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -186,6 +269,17 @@ export const ToolStudioView: React.FC = () => {
             <RotateCw className={`size-4 ${isRefreshing ? 'animate-spin text-primary' : ''}`} />
           </button>
 
+          {/* Record Workflow Button */}
+          <button
+            type="button"
+            onClick={handleStartRecording}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-red-600/90 hover:bg-red-600 text-white rounded-lg text-xs font-medium cursor-pointer shadow-2xs active:scale-95 transition-all"
+            title="Record user interactions on active tab to create a new skill"
+          >
+            <CircleDot className="size-3.5 animate-pulse" />
+            <span className="hidden xs:inline">Record Workflow</span>
+          </button>
+
           {/* New Tool Button */}
           <button
             type="button"
@@ -203,6 +297,25 @@ export const ToolStudioView: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* Active Recording Banner */}
+      {isRecording && (
+        <div className="mx-3.5 mt-2.5 p-2.5 rounded-xl border border-red-500/30 bg-red-500/10 flex items-center justify-between text-xs text-red-400">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-red-500 animate-ping" />
+            <span className="font-semibold">
+              Recording Workflow on active tab ({recordedStepCount} {recordedStepCount === 1 ? 'step' : 'steps'})
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleStopRecordingFromPanel}
+            className="px-2.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-medium text-[11px] cursor-pointer"
+          >
+            Finish & Review
+          </button>
+        </div>
+      )}
 
       {/* Search Filter Bar */}
       {tools.length > 0 && (
@@ -505,6 +618,18 @@ export const ToolStudioView: React.FC = () => {
         onClose={() => {
           setIsTestModalOpen(false);
           setActiveTestTool(null);
+        }}
+      />
+
+      {/* Workflow Review & Synthesis Modal */}
+      <WorkflowReviewModal
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        rawActions={reviewActions}
+        initialUrl={reviewInitialUrl}
+        onSaved={async () => {
+          setIsReviewModalOpen(false);
+          await loadTools();
         }}
       />
     </div>
