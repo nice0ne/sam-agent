@@ -69,5 +69,56 @@ export default defineBackground(() => {
       sendResponse({ status: 'alive', timestamp: Date.now() });
       return true;
     }
+
+    if (message.type === 'START_WORKFLOW_RECORDING') {
+      (async () => {
+        let targetTabId = message.tabId;
+        if (!targetTabId) {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          targetTabId = tab?.id;
+        }
+        if (targetTabId) {
+          await chrome.storage.session?.set({
+            active_workflow_recording: {
+              tabId: targetTabId,
+              status: 'recording',
+              actions: [],
+              initialUrl: '',
+              startTime: Date.now(),
+            },
+          });
+          await chrome.scripting.executeScript({
+            target: { tabId: targetTabId },
+            files: ['/workflow-recorder.content.js'],
+          });
+        }
+      })().catch((err) => console.warn('[Background] Failed to start workflow recording:', err));
+      sendResponse({ status: 'ok' });
+      return true;
+    }
+
+    if (message.type === 'WORKFLOW_RECORDING_FINISH') {
+      chrome.storage.session?.set({
+        last_finished_workflow: {
+          actions: message.actions || [],
+          initialUrl: message.initialUrl || '',
+          completedAt: Date.now(),
+        },
+      });
+      chrome.runtime.sendMessage({
+        type: 'WORKFLOW_RECORDING_READY_FOR_REVIEW',
+        actions: message.actions || [],
+        initialUrl: message.initialUrl || '',
+      }).catch(() => {});
+      sendResponse({ status: 'ok' });
+      return true;
+    }
+
+    if (message.type === 'WORKFLOW_RECORDING_CANCEL') {
+      chrome.storage.session?.remove(['active_workflow_recording']).catch(() => {});
+      chrome.runtime.sendMessage({ type: 'WORKFLOW_RECORDING_ABORTED' }).catch(() => {});
+      sendResponse({ status: 'ok' });
+      return true;
+    }
   });
 });
