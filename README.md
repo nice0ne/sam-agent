@@ -5,7 +5,7 @@
 # SAM-Agent
 ### Autonomous AI Browser Assistant, Co-Pilot & Local Automation Workspace
 
-[![Version](https://img.shields.io/badge/Version-4.6.4-blue.svg?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/Version-4.7.0-blue.svg?style=flat-square)](package.json)
 [![Manifest V3](https://img.shields.io/badge/Chrome-Manifest_V3-4285F4?logo=googlechrome&logoColor=white&style=flat-square)](https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black&style=flat-square)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
@@ -31,8 +31,9 @@ Unlike superficial chatbots, SAM-Agent can **inspect deep DOM trees**, **execute
 
 ---
 
-## 🚀 What's New in v4.6.4
+## 🚀 What's New in v4.7.0
 
+- 🎬 **Workflow Recorder & Demonstration-to-Skill Studio (v4.7.0)**: Record live browser interactions (clicks, text input, selects, toggles, navigation) using an isolated in-page Shadow DOM HUD. The synthesis engine computes a resilient multi-selector cascade (`data-testid`, stable ID, ARIA, text matching, scoped CSS), infers dynamic `@param` variables, and generates production-ready executable user tools in VFS (`/tools/<name>.js`). Includes interactive review timeline, parameter customizer, and instant in-tab Test Run verification directly in Custom Tool Studio.
 - 🔔 **GitHub Release Auto-Update Checker & Notification UI (v4.6.4)**: Automatically polls GitHub releases for new extension versions, showing real-time notification banner, header rocket pill, and direct download shortcut to GitHub Releases.
 - 🔄 **Autonomous Auto-Nudge & Resilient Execution Loop (v4.6.3)**: Background auto-nudging prevents agent stalling mid-task when LLM outputs thoughts without actions; expanded multi-step quota to 40 steps.
 - 🧪 **Pre-Launch UAT & Bug Hunter Studio (v4.6.2)**: Automated DOM & responsiveness audit (`/tools/auditPageBugs.js`), broken link/media sniffer, and complete QA testing SOP (`/skills/uat-bug-hunter.md`).
