@@ -96,7 +96,16 @@ export interface FileChunkRecord {
   updatedAt: number;
 }
 
-export type MessagePart = TextPart | FilePart | ReasoningPart | ToolCallPart | PlanPart;
+import type { PipelineProgress, WorkerDeliverable } from './subagent';
+
+export interface SubagentPipelinePart {
+  type: 'subagent_pipeline';
+  planTitle: string;
+  progress: PipelineProgress;
+  deliverables?: WorkerDeliverable[];
+}
+
+export type MessagePart = TextPart | FilePart | ReasoningPart | ToolCallPart | PlanPart | SubagentPipelinePart;
 
 export interface ThreadMessage {
   id: string;
@@ -147,3 +156,4 @@ declare global {
 }
 
 export type { ScheduledTask } from '../services/scheduler';
+export * from './subagent';

@@ -1,5 +1,7 @@
 import { appendMessageToThread, db, recordDomainLearning } from './db';
-import type { ThreadMessage, MessagePart, ToolCallPart, FilePart, AttachedFilePayload, PlanPart } from '../types/agent';
+import type { ThreadMessage, MessagePart, ToolCallPart, FilePart, AttachedFilePayload, PlanPart, SubagentPipelinePart } from '../types/agent';
+import type { WorkerSpec, PipelineProgress, WorkerDeliverable } from '../types/subagent';
+import { runSubagentPipeline } from './subagent-coordinator';
 import { saveVfsFile } from './vfs';
 import { STORAGE_KEYS } from '../stores/useAppStore';
 import { getActivePageContext, formatPageContextPrompt, PageContext } from './page-reader';
@@ -578,6 +580,24 @@ When asked to backup conversations, memories, documents, or settings (e.g. "back
 \`\`\`
 - It automatically packages all requested local databases, chat threads, VFS documents, and configuration into a validated JSON backup archive in \`/workspace/\` and informs the user.
 
+22. HIERARCHICAL SUB-AGENT DELEGATION PIPELINE (FOR PARALLEL WORKERS & COMPLEX RESEARCH):
+When given a complex, multi-source, multi-tab research, scraping, or cross-platform comparison task (or when Multi-Agent Mode is requested):
+- Decompose the goal into specialized parallel worker sub-agents (\`researcher\`, \`scraper\`, \`analyst\`) using \`delegateSubagents\`:
+\`\`\`action
+[
+  {
+    "action": "delegateSubagents",
+    "planTitle": "Cross-Platform Market Comparison",
+    "workers": [
+      { "id": "w1", "name": "Tokopedia Scout", "role": "researcher", "taskPrompt": "Search for Lenovo Yoga Slim 7 on Tokopedia and extract price and rating" },
+      { "id": "w2", "name": "Shopee Scout", "role": "researcher", "taskPrompt": "Search for Lenovo Yoga Slim 7 on Shopee and extract price and rating" }
+    ]
+  }
+]
+\`\`\`
+- Each worker runs concurrently in a lightweight sandboxed execution loop with its own turn budget and resource limits, avoiding main thread context window bloat.
+- After all workers finish, the coordinator compiles an aggregated report into your next observation so you can formulate the final comprehensive synthesis or generate artifacts.
+
 ### AUTONOMOUS MULTI-STEP EXECUTION:
 You operate in an autonomous execution loop! When you emit an action block, your action is executed immediately in the browser, the page state updates, and you will automatically receive an observation with the new page content and links in the next turn.
 Therefore:
@@ -676,7 +696,7 @@ async function waitForChatGPTResponse(tabId?: number, maxWaitMs = 60000): Promis
 /**
  * Stream text from the configured AI provider
  */
-async function streamFromProvider(
+export async function streamFromProvider(
   provider: string,
   model: string,
   storageData: Record<string, any>,
@@ -1089,6 +1109,8 @@ async function parseAndExecuteActions(
 
   for (const act of actionsToRun) {
     const isTablessAction =
+      (act as any).action === 'delegateSubagents' ||
+      (act as any).action === 'delegateSubagent' ||
       act.action === 'writeFile' ||
       act.action === 'generatePptx' ||
       act.action === 'generateDoc' ||
@@ -1129,7 +1151,9 @@ async function parseAndExecuteActions(
 
     const toolId = crypto.randomUUID();
     const toolName =
-      act.action === 'backupData' || act.action === 'backupSystem' || (act as any).action === 'exportData'
+      (act as any).action === 'delegateSubagents' || (act as any).action === 'delegateSubagent'
+        ? 'delegateSubagents'
+        : act.action === 'backupData' || act.action === 'backupSystem' || (act as any).action === 'exportData'
         ? 'backupData'
         : act.action === 'confirmAction' || (act as any).action === 'requestApproval'
         ? 'confirmAction'
@@ -1218,7 +1242,79 @@ async function parseAndExecuteActions(
     onUpdate?.();
 
     // Execute live action
-    const res = await executePageAction(targetTabId || 0, act);
+    let res: ActionResult;
+    if ((act as any).action === 'delegateSubagents' || (act as any).action === 'delegateSubagent') {
+      const planTitle = (act as any).planTitle || (act as any).title || 'Cross-Platform Subagent Delegation';
+      const workers: WorkerSpec[] = Array.isArray((act as any).workers) ? (act as any).workers : [];
+
+      try {
+        const pipelineResult = await runSubagentPipeline(
+          planTitle,
+          workers,
+          async (progress: PipelineProgress) => {
+            // Stream live progress updates into message part subagent_pipeline on the active assistant message so UI updates in real time
+            await db.transaction('rw', db.threads, async () => {
+              const current = await db.threads.get(threadId);
+              if (!current) return;
+              const msg = current.messages.find((m) => m.id === targetAssistantMsgId);
+              if (msg) {
+                let part = msg.parts.find((p) => p.type === 'subagent_pipeline') as SubagentPipelinePart | undefined;
+                if (!part) {
+                  part = {
+                    type: 'subagent_pipeline',
+                    planTitle,
+                    progress,
+                  };
+                  msg.parts.push(part);
+                } else {
+                  part.planTitle = planTitle;
+                  part.progress = progress;
+                }
+                await db.threads.put(current);
+              }
+            });
+            onUpdate?.();
+          }
+        );
+
+        // Update subagent_pipeline part with final deliverables
+        await db.transaction('rw', db.threads, async () => {
+          const current = await db.threads.get(threadId);
+          if (!current) return;
+          const msg = current.messages.find((m) => m.id === targetAssistantMsgId);
+          if (msg) {
+            const part = msg.parts.find((p) => p.type === 'subagent_pipeline') as SubagentPipelinePart | undefined;
+            if (part) {
+              part.deliverables = pipelineResult.deliverables;
+            }
+            await db.threads.put(current);
+          }
+        });
+        onUpdate?.();
+
+        res = {
+          success: true,
+          action: 'delegateSubagents',
+          target: planTitle,
+          message: pipelineResult.aggregatedObservation,
+          data: {
+            planTitle,
+            deliverables: pipelineResult.deliverables,
+          },
+        };
+      } catch (err: any) {
+        console.error('[chat-runner] delegateSubagents execution failed:', err);
+        res = {
+          success: false,
+          action: 'delegateSubagents',
+          target: planTitle,
+          message: `Sub-agent pipeline execution failed: ${err?.message || String(err)}`,
+          error: err?.message,
+        };
+      }
+    } else {
+      res = await executePageAction(targetTabId || 0, act);
+    }
     results.push(res);
 
     // Update tool-call part with result
@@ -1777,6 +1873,9 @@ ${BASE_CAPABILITIES_PROMPT}`;
 
     const actionSummary = executedResults
       .map((r) => {
+        if (r.action === 'delegateSubagents' || (r as any).action === 'delegateSubagent') {
+          return `- [Sub-Agent Delegation Pipeline: ${r.target || 'Subagents'}]:\n${r.message}`;
+        }
         if (r.action === 'confirmAction' || (r as any).action === 'requestApproval') {
           return `- [confirmAction]: PENDING APPROVAL\n${r.message}`;
         }

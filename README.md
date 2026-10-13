@@ -5,7 +5,7 @@
 # SAM-Agent
 ### Autonomous AI Browser Assistant, Co-Pilot & Local Automation Workspace
 
-[![Version](https://img.shields.io/badge/Version-4.7.1-blue.svg?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/Version-4.8.0-blue.svg?style=flat-square)](package.json)
 [![Manifest V3](https://img.shields.io/badge/Chrome-Manifest_V3-4285F4?logo=googlechrome&logoColor=white&style=flat-square)](https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black&style=flat-square)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white&style=flat-square)](https://www.typescriptlang.org/)
@@ -31,8 +31,9 @@ Unlike superficial chatbots, SAM-Agent can **inspect deep DOM trees**, **execute
 
 ---
 
-## 🚀 What's New in v4.7.1
+## 🚀 What's New in v4.8.0
 
+- 🤖 **Hierarchical Sub-Agent Delegation Pipeline (v4.8.0)**: Autonomous multi-agent coordination system where the Planner Agent decomposes complex goals into parallel sub-tasks and delegates them to specialized, sandboxed Worker Agents (`Researcher`, `Scraper`, `Analyst`). Workers run concurrently with isolated context windows (max 6–8 steps) and strict quotas to cut context bloat by ~75%. Features live in-chat timeline execution card (`SubagentPipelineCard`), "Multi-Agent Mode" toggle in chat input, self-healing aggregation, and live portal synchronization with the 3D Virtual Office.
 - 🕸️ **Visual Web Scraper & Schema Extractor Studio (v4.7.1)**: Interactive two-click pattern inference engine (Lowest Common Ancestor & relative child selectors), glassmorphic in-page Shadow DOM picker toolbar, glowing element highlight overlay, multi-column field mapper (Text, URLs, lazy-loaded images), multi-page crawler (Next-button & infinite-scroll with polite throttling), and direct pipeline into Excel (`.xlsx`), CSV, and JSON in VFS, with 1-click preview in Excel Spreadsheet Studio.
 - 🎬 **Workflow Recorder & Demonstration-to-Skill Studio (v4.7.0)**: Record live browser interactions (clicks, text input, selects, toggles, navigation) using an isolated in-page Shadow DOM HUD. The synthesis engine computes a resilient multi-selector cascade (`data-testid`, stable ID, ARIA, text matching, scoped CSS), infers dynamic `@param` variables, and generates production-ready executable user tools in VFS (`/tools/<name>.js`). Includes interactive review timeline, parameter customizer, and instant in-tab Test Run verification directly in Custom Tool Studio.
 - 🔔 **GitHub Release Auto-Update Checker & Notification UI (v4.6.4)**: Automatically polls GitHub releases for new extension versions, showing real-time notification banner, header rocket pill, and direct download shortcut to GitHub Releases.

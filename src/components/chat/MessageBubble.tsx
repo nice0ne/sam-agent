@@ -3,6 +3,7 @@ import { Copy, Check, FileText, Eye } from 'lucide-react';
 import { MarkdownContent } from './MarkdownContent';
 import { ToolCallCard } from './ToolCallCard';
 import { PlanCard } from './PlanCard';
+import { SubagentPipelineCard } from './SubagentPipelineCard';
 import type { ThreadMessage } from '../../types/agent';
 
 interface MessageBubbleProps {
@@ -138,6 +139,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isWaiting
               }
               if (part.type === 'plan') {
                 return <PlanCard key={part.planId || pIdx} planPart={part} />;
+              }
+              if (part.type === 'subagent_pipeline') {
+                return (
+                  <SubagentPipelineCard
+                    key={pIdx}
+                    progress={part.progress}
+                    planTitle={part.planTitle}
+                    deliverables={part.deliverables}
+                  />
+                );
               }
               if (part.type === 'reasoning') {
                 return (

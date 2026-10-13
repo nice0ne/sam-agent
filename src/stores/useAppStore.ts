@@ -17,6 +17,7 @@ export const STORAGE_KEYS = {
   agentSoul: 'agentSoul',
   enableRtk: 'enableRtk',
   enablePonytail: 'enablePonytail',
+  multiAgentMode: 'multiAgentMode',
 } as const;
 
 export interface AppState {
@@ -29,6 +30,7 @@ export interface AppState {
   openaiModel: string;
   thinkingLevel: 'none' | 'low' | 'medium' | 'high';
   isSettingsLoaded: boolean;
+  multiAgentMode: boolean;
 
   // Actions
   setView: (view: 'threads' | 'chat' | 'settings' | 'files' | 'tools' | 'scheduler') => void;
@@ -43,6 +45,8 @@ export interface AppState {
   clearAllThreads: () => Promise<void>;
   setProvider: (provider: string) => Promise<void>;
   setThinkingLevel: (level: 'none' | 'low' | 'medium' | 'high') => Promise<void>;
+  setMultiAgentMode: (enabled: boolean) => Promise<void>;
+  toggleMultiAgentMode: () => Promise<void>;
   addToMessageHistory: (msg: string) => Promise<void>;
   loadSettings: () => Promise<void>;
 }
@@ -57,6 +61,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   openaiModel: 'gpt-4o',
   thinkingLevel: 'high',
   isSettingsLoaded: false,
+  multiAgentMode: false,
 
   setView: (view) => {
     set({ view });
@@ -131,6 +136,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ thinkingLevel });
   },
 
+  setMultiAgentMode: async (multiAgentMode) => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.multiAgentMode]: multiAgentMode });
+    set({ multiAgentMode });
+  },
+
+  toggleMultiAgentMode: async () => {
+    const next = !get().multiAgentMode;
+    await chrome.storage.local.set({ [STORAGE_KEYS.multiAgentMode]: next });
+    set({ multiAgentMode: next });
+  },
+
   addToMessageHistory: async (msg) => {
     const trimmed = msg.trim();
     if (!trimmed) return;
@@ -172,6 +188,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       anthropicModel: data[STORAGE_KEYS.anthropicModel] || 'claude-3-7-sonnet-20250219',
       openaiModel: data[STORAGE_KEYS.openaiModel] || 'gpt-4o',
       thinkingLevel: data[STORAGE_KEYS.thinkingLevel] || 'high',
+      multiAgentMode: Boolean(data[STORAGE_KEYS.multiAgentMode] ?? false),
       isSettingsLoaded: true,
     });
   },

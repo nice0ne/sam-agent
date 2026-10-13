@@ -7,3 +7,6 @@ export * from './MessageBubble';
 export * from './MessageInput';
 export * from './QuickPromptChips';
 export * from './ToolCallCard';
+export * from './SubagentPipelineCard';
+export * from './ChatMessage';
+export * from './ChatInput';

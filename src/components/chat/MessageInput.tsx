@@ -17,7 +17,9 @@ import {
   Mic,
   MicOff,
   X,
+  Network,
 } from 'lucide-react';
+import { useAppStore } from '../../stores/useAppStore';
 import { getActiveTab, isRestrictedUrl } from '../../services/page-reader';
 import { QuickPromptChips } from './QuickPromptChips';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
@@ -41,6 +43,7 @@ interface ActiveTabSummary {
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({ onSend, onStop, isStreaming = false }) => {
+  const { multiAgentMode, toggleMultiAgentMode } = useAppStore();
   const [text, setText] = useState('');
   const [includePageContext, setIncludePageContext] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTabSummary | null>(null);
@@ -278,17 +281,24 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSend, onStop, isSt
     }
   }, [text]);
 
+  const handleSendMessage = () => {
+    if (text.trim() || attachedFiles.length > 0) {
+      let promptToSend = text.trim() || 'Please analyze the attached document(s)/file(s).';
+      if (multiAgentMode) {
+        promptToSend = `[Multi-Agent Mode Enabled] Coordinate and delegate sub-tasks to specialized subagents in parallel (researcher, scraper, analyst) where appropriate.\n\n${promptToSend}`;
+      }
+      baseTextRef.current = '';
+      stopListening();
+      onSend(promptToSend, attachedFiles.length > 0 ? attachedFiles : undefined, includePageContext);
+      setText('');
+      setAttachedFiles([]);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (text.trim() || attachedFiles.length > 0) {
-        const promptToSend = text.trim() || 'Please analyze the attached document(s)/file(s).';
-        baseTextRef.current = '';
-        stopListening();
-        onSend(promptToSend, attachedFiles.length > 0 ? attachedFiles : undefined, includePageContext);
-        setText('');
-        setAttachedFiles([]);
-      }
+      handleSendMessage();
     }
   };
 
@@ -513,6 +523,28 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSend, onStop, isSt
               <span className="text-[10px] hidden xs:inline font-medium">Prompts</span>
             </button>
 
+            {/* Toggle Multi-Agent Delegation Mode */}
+            <button
+              type="button"
+              onClick={() => toggleMultiAgentMode()}
+              className={`px-1.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                multiAgentMode
+                  ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-500/15 border border-indigo-500/30 font-medium shadow-2xs'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+              title={
+                multiAgentMode
+                  ? 'Multi-Agent Mode: ACTIVE (Planner delegates to parallel worker sub-agents)'
+                  : 'Multi-Agent Mode: OFF (Click to enable autonomous subagent delegation)'
+              }
+            >
+              <Network className={`size-3.5 ${multiAgentMode ? 'animate-pulse text-indigo-500' : ''}`} />
+              <span className="text-[10px] hidden xs:inline font-medium">Multi-Agent</span>
+              {multiAgentMode && (
+                <span className="size-1.5 rounded-full bg-indigo-500 animate-ping inline-block" />
+              )}
+            </button>
+
             {/* Google Web Speech Mic Button */}
             {isSpeechSupported && (
               <button
@@ -549,16 +581,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({ onSend, onStop, isSt
           ) : (
             <button
               type="button"
-              onClick={() => {
-                if (text.trim() || attachedFiles.length > 0) {
-                  const promptToSend = text.trim() || 'Please analyze the attached document(s)/file(s).';
-                  baseTextRef.current = '';
-                  stopListening();
-                  onSend(promptToSend, attachedFiles.length > 0 ? attachedFiles : undefined, includePageContext);
-                  setText('');
-                  setAttachedFiles([]);
-                }
-              }}
+              onClick={handleSendMessage}
               disabled={!text.trim() && attachedFiles.length === 0}
               className="flex items-center gap-1.5 px-3 py-1 bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-35 disabled:cursor-not-allowed rounded-lg text-xs font-medium cursor-pointer shadow-xs active:scale-95 transition-all"
             >

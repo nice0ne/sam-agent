@@ -370,7 +370,15 @@ export type BrowserAction =
   | FillProfileAction
   | SaveProfileVaultAction
   | ConfirmAction
-  | BackupDataAction;
+  | BackupDataAction
+  | DelegateSubagentsAction;
+
+export interface DelegateSubagentsAction {
+  action: 'delegateSubagents' | 'delegateSubagent';
+  planTitle?: string;
+  workers: any[];
+  [key: string]: any;
+}
 
 export interface ActionResult {
   success: boolean;
