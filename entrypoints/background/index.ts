@@ -120,5 +120,48 @@ export default defineBackground(() => {
       sendResponse({ status: 'ok' });
       return true;
     }
+
+    if (message.type === 'START_VISUAL_SCRAPER') {
+      (async () => {
+        let targetTabId = message.tabId;
+        if (!targetTabId) {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          targetTabId = tab?.id;
+        }
+        if (targetTabId) {
+          await chrome.scripting.executeScript({
+            target: { tabId: targetTabId },
+            files: ['/web-scraper.content.js'],
+          });
+        }
+      })().catch((err) => console.warn('[Background] Failed to start visual scraper:', err));
+      sendResponse({ status: 'ok' });
+      return true;
+    }
+
+    if (message.type === 'SCRAPER_OPEN_STUDIO') {
+      chrome.storage.session?.set({
+        scraper_last_result: {
+          schema: message.schema,
+          rows: message.rows,
+          url: message.url,
+          timestamp: Date.now(),
+        },
+      });
+      chrome.runtime.sendMessage({
+        type: 'SCRAPER_STUDIO_READY',
+        schema: message.schema,
+        rows: message.rows,
+        url: message.url,
+      }).catch(() => {});
+      sendResponse({ status: 'ok' });
+      return true;
+    }
+
+    if (message.type === 'SCRAPER_CANCEL') {
+      chrome.runtime.sendMessage({ type: 'SCRAPER_ABORTED' }).catch(() => {});
+      sendResponse({ status: 'ok' });
+      return true;
+    }
   });
 });
