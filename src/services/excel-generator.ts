@@ -437,7 +437,7 @@ export async function createExcelArtifact(
     .replace(/[^a-z0-9_-]/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '')
-    .slice(0, 40) || 'spreadsheet';
+    .slice(0, 80) || 'spreadsheet';
 
   const xlsxFilename = `${cleanTitle}.xlsx`;
   const csvFilename = `${cleanTitle}.csv`;
@@ -480,4 +480,15 @@ export async function createExcelArtifact(
     csvPath,
     xlsxBlob,
   };
+}
+
+/**
+ * Generates an Excel workbook (.xlsx) and saves it into VFS /workspace/,
+ * returning the file paths and generated Blob.
+ */
+export async function generateExcelWorkbook(
+  specInput: any,
+  baseName?: string
+): Promise<{ xlsxPath: string; csvPath: string; xlsxBlob: Blob }> {
+  return createExcelArtifact(specInput, baseName);
 }

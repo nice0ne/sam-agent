@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Sparkles,
   CircleDot,
+  Table,
 } from 'lucide-react';
 import {
   listUserTools,
@@ -25,6 +26,7 @@ import {
 import { useAppStore } from '../../stores/useAppStore';
 import { TestRunModal } from './TestRunModal';
 import { WorkflowReviewModal } from './WorkflowReviewModal';
+import { ScraperStudioModal, ScraperStudioData } from '../scraper/ScraperStudioModal';
 import { RecordedAction } from '../../../entrypoints/workflow-recorder.content/types';
 
 export const ToolStudioView: React.FC = () => {
@@ -41,6 +43,10 @@ export const ToolStudioView: React.FC = () => {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [reviewActions, setReviewActions] = useState<RecordedAction[]>([]);
   const [reviewInitialUrl, setReviewInitialUrl] = useState('');
+
+  // Visual Scraper State
+  const [isScraperModalOpen, setIsScraperModalOpen] = useState(false);
+  const [scraperData, setScraperData] = useState<ScraperStudioData | null>(null);
 
   // Modals state
   const [activeTestTool, setActiveTestTool] = useState<UserToolMeta | null>(null);
@@ -70,7 +76,7 @@ export const ToolStudioView: React.FC = () => {
 
     // Check if recording is active or review pending
     if (typeof chrome !== 'undefined' && chrome.storage?.session) {
-      chrome.storage.session.get(['active_workflow_recording', 'last_finished_workflow'], (res) => {
+      chrome.storage.session.get(['active_workflow_recording', 'last_finished_workflow', 'last_scraper_result'], (res) => {
         if (res?.active_workflow_recording?.status === 'recording') {
           setIsRecording(true);
           setRecordedStepCount(res.active_workflow_recording.actions?.length || 0);
@@ -81,10 +87,23 @@ export const ToolStudioView: React.FC = () => {
           setIsReviewModalOpen(true);
           chrome.storage.session.remove(['last_finished_workflow']);
         }
+        if (res?.last_scraper_result?.rows?.length) {
+          const r = res.last_scraper_result;
+          setScraperData({
+            rows: r.rows || [],
+            totalRows: r.totalRows ?? r.rows?.length ?? 0,
+            pagesCrawled: r.pagesCrawled ?? 1,
+            domain: r.domain || '',
+            url: r.url || '',
+            schema: r.schema,
+          });
+          setIsScraperModalOpen(true);
+          chrome.storage.session.remove(['last_scraper_result']);
+        }
       });
     }
 
-    // Message listener for recording events
+    // Message listener for recording and scraper events
     const onRuntimeMessage = (msg: any) => {
       if (msg.type === 'WORKFLOW_RECORDING_STEP') {
         setIsRecording(true);
@@ -98,6 +117,17 @@ export const ToolStudioView: React.FC = () => {
       } else if (msg.type === 'WORKFLOW_RECORDING_ABORTED') {
         setIsRecording(false);
         setRecordedStepCount(0);
+      } else if (msg.type === 'SCRAPER_OPEN_STUDIO') {
+        const rawRows = msg.rows || msg.result?.rows || [];
+        setScraperData({
+          rows: rawRows,
+          totalRows: msg.totalRows ?? msg.result?.totalRows ?? rawRows.length,
+          pagesCrawled: msg.pagesCrawled ?? msg.result?.pagesCrawled ?? 1,
+          domain: msg.domain || msg.result?.domain || '',
+          url: msg.url || msg.result?.url || '',
+          schema: msg.schema || msg.result?.schema,
+        });
+        setIsScraperModalOpen(true);
       }
     };
 
@@ -119,6 +149,16 @@ export const ToolStudioView: React.FC = () => {
       await chrome.runtime.sendMessage({ type: 'START_WORKFLOW_RECORDING' });
     } catch (err) {
       console.error('[ToolStudioView] Failed to start workflow recording:', err);
+    }
+  };
+
+  const handleStartVisualScraper = async () => {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+        await chrome.runtime.sendMessage({ type: 'START_VISUAL_SCRAPER' });
+      }
+    } catch (err) {
+      console.error('[ToolStudioView] Failed to start visual scraper:', err);
     }
   };
 
@@ -267,6 +307,17 @@ export const ToolStudioView: React.FC = () => {
             title="Refresh Tools"
           >
             <RotateCw className={`size-4 ${isRefreshing ? 'animate-spin text-primary' : ''}`} />
+          </button>
+
+          {/* Visual Scraper Button */}
+          <button
+            type="button"
+            onClick={handleStartVisualScraper}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600/90 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium cursor-pointer shadow-2xs active:scale-95 transition-all"
+            title="Visually extract repeating tabular data from active tab"
+          >
+            <Table className="size-3.5" />
+            <span className="hidden xs:inline">Visual Scraper</span>
           </button>
 
           {/* Record Workflow Button */}
@@ -631,6 +682,16 @@ export const ToolStudioView: React.FC = () => {
           setIsReviewModalOpen(false);
           await loadTools();
         }}
+      />
+
+      {/* Visual Web Scraper Studio Modal */}
+      <ScraperStudioModal
+        isOpen={isScraperModalOpen}
+        onClose={() => {
+          setIsScraperModalOpen(false);
+          setScraperData(null);
+        }}
+        data={scraperData}
       />
     </div>
   );
