@@ -80,33 +80,36 @@ export const ToolStudioView: React.FC = () => {
     setIsLoading(true);
     loadTools().finally(() => setIsLoading(false));
 
-    // Check if recording is active or review pending
+    // Check if recording is active or review pending or scraper result exists
     if (typeof chrome !== 'undefined' && chrome.storage?.session) {
-      chrome.storage.session.get(['active_workflow_recording', 'last_finished_workflow', 'last_scraper_result'], (res) => {
-        if (res?.active_workflow_recording?.status === 'recording') {
-          setIsRecording(true);
-          setRecordedStepCount(res.active_workflow_recording.actions?.length || 0);
+      chrome.storage.session.get(
+        ['active_workflow_recording', 'last_finished_workflow', 'scraper_last_result', 'last_scraper_result', 'scraper_session'],
+        (res) => {
+          if (res?.active_workflow_recording?.status === 'recording') {
+            setIsRecording(true);
+            setRecordedStepCount(res.active_workflow_recording.actions?.length || 0);
+          }
+          if (res?.last_finished_workflow?.actions?.length) {
+            setReviewActions(res.last_finished_workflow.actions);
+            setReviewInitialUrl(res.last_finished_workflow.initialUrl || '');
+            setIsReviewModalOpen(true);
+            chrome.storage.session.remove(['last_finished_workflow']);
+          }
+          const rawScraper = res?.scraper_last_result || res?.last_scraper_result || res?.scraper_session;
+          if (rawScraper && Array.isArray(rawScraper.rows) && rawScraper.rows.length > 0) {
+            setScraperData({
+              rows: rawScraper.rows || [],
+              totalRows: rawScraper.totalRows ?? rawScraper.rows?.length ?? 0,
+              pagesCrawled: rawScraper.pagesCrawled ?? 1,
+              domain: rawScraper.domain || '',
+              url: rawScraper.url || '',
+              schema: rawScraper.schema,
+            });
+            setIsScraperModalOpen(true);
+            chrome.storage.session.remove(['scraper_last_result', 'last_scraper_result', 'scraper_session']);
+          }
         }
-        if (res?.last_finished_workflow?.actions?.length) {
-          setReviewActions(res.last_finished_workflow.actions);
-          setReviewInitialUrl(res.last_finished_workflow.initialUrl || '');
-          setIsReviewModalOpen(true);
-          chrome.storage.session.remove(['last_finished_workflow']);
-        }
-        if (res?.last_scraper_result?.rows?.length) {
-          const r = res.last_scraper_result;
-          setScraperData({
-            rows: r.rows || [],
-            totalRows: r.totalRows ?? r.rows?.length ?? 0,
-            pagesCrawled: r.pagesCrawled ?? 1,
-            domain: r.domain || '',
-            url: r.url || '',
-            schema: r.schema,
-          });
-          setIsScraperModalOpen(true);
-          chrome.storage.session.remove(['last_scraper_result']);
-        }
-      });
+      );
     }
 
     // Message listener for recording and scraper events
@@ -123,7 +126,7 @@ export const ToolStudioView: React.FC = () => {
       } else if (msg.type === 'WORKFLOW_RECORDING_ABORTED') {
         setIsRecording(false);
         setRecordedStepCount(0);
-      } else if (msg.type === 'SCRAPER_OPEN_STUDIO') {
+      } else if (msg.type === 'SCRAPER_OPEN_STUDIO' || msg.type === 'SCRAPER_STUDIO_READY') {
         const rawRows = msg.rows || msg.result?.rows || [];
         setScraperData({
           rows: rawRows,
@@ -351,6 +354,17 @@ export const ToolStudioView: React.FC = () => {
             <RotateCw className={`size-4 ${isRefreshing ? 'animate-spin text-primary' : ''}`} />
           </button>
 
+          {/* Scraper Studio Button (View Scraped Data & Table) */}
+          <button
+            type="button"
+            onClick={() => setIsScraperModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-muted/80 hover:bg-muted text-foreground border border-border/80 rounded-lg text-xs font-medium cursor-pointer shadow-2xs active:scale-95 transition-all"
+            title="Open Scraper Studio to view schemas and export extracted tables"
+          >
+            <Table className="size-3.5 text-emerald-500" />
+            <span className="hidden xs:inline">Scraper Studio</span>
+          </button>
+
           {/* Visual Scraper Button */}
           <button
             type="button"
@@ -358,7 +372,7 @@ export const ToolStudioView: React.FC = () => {
             className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600/90 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium cursor-pointer shadow-2xs active:scale-95 transition-all"
             title="Visually extract repeating tabular data from active tab"
           >
-            <Table className="size-3.5" />
+            <Sparkles className="size-3.5" />
             <span className="hidden xs:inline">Visual Scraper</span>
           </button>
 

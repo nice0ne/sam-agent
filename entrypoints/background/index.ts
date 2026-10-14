@@ -191,20 +191,31 @@ export default defineBackground(() => {
     }
 
     if (message.type === 'SCRAPER_OPEN_STUDIO') {
+      const resultData = {
+        schema: message.schema,
+        rows: message.rows || [],
+        totalRows: message.rows?.length || 0,
+        pagesCrawled: 1,
+        url: message.url || '',
+        timestamp: Date.now(),
+      };
       chrome.storage.session?.set({
-        scraper_last_result: {
-          schema: message.schema,
-          rows: message.rows,
-          url: message.url,
-          timestamp: Date.now(),
-        },
+        scraper_last_result: resultData,
+        last_scraper_result: resultData,
       });
       chrome.runtime.sendMessage({
-        type: 'SCRAPER_STUDIO_READY',
-        schema: message.schema,
-        rows: message.rows,
-        url: message.url,
+        type: 'SCRAPER_OPEN_STUDIO',
+        ...resultData,
       }).catch(() => {});
+      chrome.runtime.sendMessage({
+        type: 'SCRAPER_STUDIO_READY',
+        ...resultData,
+      }).catch(() => {});
+
+      if (sender.tab?.id) {
+        // @ts-ignore
+        chrome.sidePanel?.open({ tabId: sender.tab.id }).catch(() => {});
+      }
       sendResponse({ status: 'ok' });
       return true;
     }

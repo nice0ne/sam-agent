@@ -56,6 +56,12 @@ export const App: React.FC = () => {
     const onMessage = (msg: any) => {
       if (msg.type === 'close-sidepanel') {
         window.close();
+      } else if (
+        msg.type === 'SCRAPER_OPEN_STUDIO' ||
+        msg.type === 'SCRAPER_STUDIO_READY' ||
+        msg.type === 'WORKFLOW_RECORDING_READY_FOR_REVIEW'
+      ) {
+        useAppStore.getState().setView('tools');
       }
     };
     chrome.runtime.onMessage.addListener(onMessage);

@@ -201,7 +201,7 @@ export const Header: React.FC<HeaderProps> = ({ title, tokenUsage }) => {
                 }`}
               >
                 <Wrench className="size-3.5 text-amber-500" />
-                <span>Custom Tool Studio</span>
+                <span>Tool & Scraper Studio</span>
               </button>
 
               <button
