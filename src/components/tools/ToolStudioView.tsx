@@ -48,6 +48,12 @@ export const ToolStudioView: React.FC = () => {
   const [isScraperModalOpen, setIsScraperModalOpen] = useState(false);
   const [scraperData, setScraperData] = useState<ScraperStudioData | null>(null);
 
+  // Status feedback banner
+  const [statusBanner, setStatusBanner] = useState<{
+    type: 'error' | 'warning' | 'info';
+    text: string;
+  } | null>(null);
+
   // Modals state
   const [activeTestTool, setActiveTestTool] = useState<UserToolMeta | null>(null);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
@@ -143,22 +149,58 @@ export const ToolStudioView: React.FC = () => {
   }, []);
 
   const handleStartRecording = async () => {
+    setStatusBanner(null);
     try {
-      setIsRecording(true);
-      setRecordedStepCount(0);
-      await chrome.runtime.sendMessage({ type: 'START_WORKFLOW_RECORDING' });
-    } catch (err) {
+      if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+        const resp = await chrome.runtime.sendMessage({ type: 'START_WORKFLOW_RECORDING' });
+        if (resp && resp.status === 'error') {
+          setIsRecording(false);
+          setStatusBanner({
+            type: 'warning',
+            text: resp.message || 'Cannot start recorder on this page.',
+          });
+          return;
+        }
+        setIsRecording(true);
+        setRecordedStepCount(0);
+        setStatusBanner({
+          type: 'info',
+          text: 'Workflow Recorder HUD active on target tab! Perform your actions on the page.',
+        });
+      }
+    } catch (err: any) {
       console.error('[ToolStudioView] Failed to start workflow recording:', err);
+      setIsRecording(false);
+      setStatusBanner({
+        type: 'error',
+        text: err?.message || 'Failed to start workflow recording.',
+      });
     }
   };
 
   const handleStartVisualScraper = async () => {
+    setStatusBanner(null);
     try {
       if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-        await chrome.runtime.sendMessage({ type: 'START_VISUAL_SCRAPER' });
+        const resp = await chrome.runtime.sendMessage({ type: 'START_VISUAL_SCRAPER' });
+        if (resp && resp.status === 'error') {
+          setStatusBanner({
+            type: 'warning',
+            text: resp.message || 'Cannot start visual scraper on this page.',
+          });
+          return;
+        }
+        setStatusBanner({
+          type: 'info',
+          text: 'Visual Scraper Toolbar is active on the tab! Follow the on-page instructions to pick items.',
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('[ToolStudioView] Failed to start visual scraper:', err);
+      setStatusBanner({
+        type: 'error',
+        text: err?.message || 'Failed to start visual scraper.',
+      });
     }
   };
 
@@ -348,6 +390,31 @@ export const ToolStudioView: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* Action / Error Banner */}
+      {statusBanner && (
+        <div
+          className={`mx-3.5 mt-2.5 p-2.5 rounded-xl border flex items-start justify-between text-xs transition-all ${
+            statusBanner.type === 'error'
+              ? 'border-red-500/30 bg-red-500/10 text-red-400'
+              : statusBanner.type === 'warning'
+              ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+              : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+          }`}
+        >
+          <div className="flex items-start gap-2 pr-2">
+            <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{statusBanner.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusBanner(null)}
+            className="p-0.5 hover:bg-white/10 rounded text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Active Recording Banner */}
       {isRecording && (

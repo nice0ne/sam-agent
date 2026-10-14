@@ -10,6 +10,10 @@ export default defineContentScript({
   cssInjectionMode: 'manual',
 
   async main(ctx) {
+    if (document.querySelector('ict-quick-command')) {
+      return;
+    }
+
     const ui = await createShadowRootUi(ctx, {
       name: 'ict-quick-command',
       position: 'modal',

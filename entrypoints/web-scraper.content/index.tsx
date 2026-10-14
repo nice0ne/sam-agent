@@ -21,6 +21,11 @@ export default defineContentScript({
   cssInjectionMode: 'manual',
 
   async main(ctx) {
+    if (document.querySelector('sam-web-scraper')) {
+      console.log('[SAM Web Scraper] Already mounted, skipping.');
+      return;
+    }
+
     let containerEl: HTMLElement | null = null;
 
     const ui = await createShadowRootUi(ctx, {

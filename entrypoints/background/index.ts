@@ -1,6 +1,48 @@
 import { listScheduledTasks, syncAllTaskAlarms } from '../../src/services/scheduler';
 import { executeScheduledTask } from '../../src/services/scheduler-runner';
 
+export function isRestrictedUrl(url?: string): boolean {
+  if (!url) return true;
+  const restrictedProtocols = ['chrome:', 'chrome-extension:', 'edge:', 'about:', 'data:', 'view-source:', 'devtools:'];
+  try {
+    const parsed = new URL(url);
+    if (restrictedProtocols.includes(parsed.protocol)) return true;
+    if (parsed.hostname === 'chromewebstore.google.com' || parsed.hostname === 'chrome.google.com') return true;
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+async function getScriptableActiveTab(specifiedTabId?: number): Promise<{ tab?: chrome.tabs.Tab; error?: string }> {
+  let targetTab: chrome.tabs.Tab | undefined;
+  if (specifiedTabId) {
+    try {
+      targetTab = await chrome.tabs.get(specifiedTabId);
+    } catch (_) {}
+  }
+  if (!targetTab) {
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    targetTab = tabs[0];
+  }
+  if (!targetTab) {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    targetTab = tabs[0];
+  }
+  if (!targetTab || !targetTab.id) {
+    return { error: 'No active browser tab found. Please focus a web tab and try again.' };
+  }
+
+  const url = targetTab.url || '';
+  if (isRestrictedUrl(url)) {
+    return {
+      error: `Cannot run on browser system pages (${url.split('/')[0]}//). Please open a standard website (e.g. google.com or wikipedia.org) and try again.`,
+    };
+  }
+
+  return { tab: targetTab };
+}
+
 export default defineBackground(() => {
   console.log('[SAM-Agent] Background service worker initialized.');
 
@@ -36,11 +78,11 @@ export default defineBackground(() => {
         chrome.sidePanel?.open({ tabId: tab.id });
       }
     } else if (command === 'quick-command-palette') {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const { tab } = await getScriptableActiveTab();
       if (tab?.id) {
         chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          files: ['/quick-command.content.js'],
+          files: ['content-scripts/quick-command.js'],
         }).catch((err) => {
           console.warn('Failed to inject quick command script:', err);
         });
@@ -72,28 +114,33 @@ export default defineBackground(() => {
 
     if (message.type === 'START_WORKFLOW_RECORDING') {
       (async () => {
-        let targetTabId = message.tabId;
-        if (!targetTabId) {
-          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-          targetTabId = tab?.id;
+        const { tab, error } = await getScriptableActiveTab(message.tabId);
+        if (error || !tab?.id) {
+          return { status: 'error', message: error || 'Failed to locate tab' };
         }
-        if (targetTabId) {
-          await chrome.storage.session?.set({
-            active_workflow_recording: {
-              tabId: targetTabId,
-              status: 'recording',
-              actions: [],
-              initialUrl: '',
-              startTime: Date.now(),
-            },
-          });
-          await chrome.scripting.executeScript({
-            target: { tabId: targetTabId },
-            files: ['/workflow-recorder.content.js'],
-          });
-        }
-      })().catch((err) => console.warn('[Background] Failed to start workflow recording:', err));
-      sendResponse({ status: 'ok' });
+
+        await chrome.storage.session?.set({
+          active_workflow_recording: {
+            tabId: tab.id,
+            status: 'recording',
+            actions: [],
+            initialUrl: tab.url || '',
+            startTime: Date.now(),
+          },
+        });
+
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content-scripts/workflow-recorder.js'],
+        });
+
+        return { status: 'ok', tabId: tab.id, url: tab.url };
+      })().then((res) => {
+        sendResponse(res);
+      }).catch((err) => {
+        console.error('[Background] Failed to start workflow recording:', err);
+        sendResponse({ status: 'error', message: err?.message || String(err) });
+      });
       return true;
     }
 
@@ -123,19 +170,23 @@ export default defineBackground(() => {
 
     if (message.type === 'START_VISUAL_SCRAPER') {
       (async () => {
-        let targetTabId = message.tabId;
-        if (!targetTabId) {
-          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-          targetTabId = tab?.id;
+        const { tab, error } = await getScriptableActiveTab(message.tabId);
+        if (error || !tab?.id) {
+          return { status: 'error', message: error || 'Failed to locate tab' };
         }
-        if (targetTabId) {
-          await chrome.scripting.executeScript({
-            target: { tabId: targetTabId },
-            files: ['/web-scraper.content.js'],
-          });
-        }
-      })().catch((err) => console.warn('[Background] Failed to start visual scraper:', err));
-      sendResponse({ status: 'ok' });
+
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content-scripts/web-scraper.js'],
+        });
+
+        return { status: 'ok', tabId: tab.id, url: tab.url };
+      })().then((res) => {
+        sendResponse(res);
+      }).catch((err) => {
+        console.error('[Background] Failed to start visual scraper:', err);
+        sendResponse({ status: 'error', message: err?.message || String(err) });
+      });
       return true;
     }
 

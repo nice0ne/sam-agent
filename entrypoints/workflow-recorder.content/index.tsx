@@ -12,6 +12,11 @@ export default defineContentScript({
   cssInjectionMode: 'manual',
 
   async main(ctx) {
+    if (document.querySelector('sam-workflow-recorder')) {
+      console.log('[SAM Workflow Recorder] Already mounted, skipping.');
+      return;
+    }
+
     let status: RecordingStatus = 'recording';
     let actions: RecordedAction[] = [];
     const initialUrl = window.location.href;
