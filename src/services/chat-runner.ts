@@ -1689,9 +1689,13 @@ ${BASE_CAPABILITIES_PROMPT}`;
     } catch (err: any) {
       if (signal?.aborted) break;
       console.error('[chat-runner] Stream error:', err);
-      await updateAssistantText(
-        `⚠️ **Error:** ${err.message || 'Failed to generate response.'}\n\nPlease verify your API Key and Model settings.`
-      );
+      let errorMsg = err.message || 'Failed to generate response.';
+      if (errorMsg.includes('No active credentials') || errorMsg.includes('model_not_found') || errorMsg.includes('404')) {
+        errorMsg += `\n\n💡 **Tips:** Periksa menu **Settings > Provider**. Pastikan API Key untuk provider **${provider}** sudah diisi dan model **${model}** didukung. Jika Anda tidak memiliki kuota/kunci OpenAI, silakan pilih provider lain seperti **Google Gemini**, **Anthropic**, atau **Ollama / Custom Model**.`;
+      } else {
+        errorMsg += `\n\nPlease verify your API Key and Model settings in **Settings**.`;
+      }
+      await updateAssistantText(`⚠️ **Error:** ${errorMsg}`);
       break;
     }
 

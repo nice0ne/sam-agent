@@ -477,15 +477,15 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
   };
 
   const handlePrint = () => {
-    if (iframeRef.current?.contentWindow) {
-      try {
+    try {
+      if (iframeRef.current?.contentWindow) {
         iframeRef.current.contentWindow.focus();
         iframeRef.current.contentWindow.print();
-      } catch (err) {
-        console.error('Print failed:', err);
+      } else {
+        window.print();
       }
-    } else {
-      window.print();
+    } catch (err) {
+      console.warn('Print not supported or disallowed in this environment:', err);
     }
   };
 
@@ -815,7 +815,7 @@ export const WordDocumentPreview: React.FC<WordDocumentPreviewProps> = ({
                 ref={iframeRef}
                 key={`word-html-${renderKey}`}
                 srcDoc={sanitizedWordHtml}
-                sandbox="allow-same-origin"
+                sandbox="allow-same-origin allow-modals"
                 onLoad={handleIframeLoad}
                 style={{
                   width: '100%',

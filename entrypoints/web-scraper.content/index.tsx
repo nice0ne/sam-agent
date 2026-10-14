@@ -449,28 +449,37 @@ export default defineContentScript({
               timestamp: Date.now(),
             };
 
+            // 1. Notify background service worker to open studio and persist results
             try {
-              if (typeof chrome !== 'undefined') {
-                if (chrome.storage?.session) {
-                  await chrome.storage.session.set({
-                    scraper_session: payloadData,
-                    scraper_last_result: payloadData,
-                    last_scraper_result: payloadData,
-                  });
-                }
-                if (chrome.storage?.local) {
-                  await chrome.storage.local.set({
-                    sam_persisted_scraper_result: payloadData,
-                  });
-                }
-                await chrome.runtime.sendMessage({
+              if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+                chrome.runtime.sendMessage({
                   type: 'SCRAPER_OPEN_STUDIO',
                   ...payloadData,
+                }).catch((err) => {
+                  console.warn('[SAM Scraper] Background message error:', err);
                 });
               }
             } catch (err) {
-              console.warn('[SAM Scraper] Failed to notify studio:', err);
+              console.warn('[SAM Scraper] Failed to notify studio via runtime message:', err);
             }
+
+            // 2. Safe storage cache fallback (ignoring context restrictions)
+            try {
+              if (typeof chrome !== 'undefined') {
+                if (chrome.storage?.local) {
+                  chrome.storage.local.set({
+                    sam_persisted_scraper_result: payloadData,
+                  }).catch(() => {});
+                }
+                if (chrome.storage?.session) {
+                  chrome.storage.session.set({
+                    scraper_session: payloadData,
+                    scraper_last_result: payloadData,
+                    last_scraper_result: payloadData,
+                  }).catch(() => {});
+                }
+              }
+            } catch (_) {}
 
             setTimeout(() => {
               ui.remove();

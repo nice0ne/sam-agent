@@ -46,11 +46,32 @@ async function getScriptableActiveTab(specifiedTabId?: number): Promise<{ tab?: 
 export default defineBackground(() => {
   console.log('[SAM-Agent] Background service worker initialized.');
 
+  // Allow content scripts to access chrome.storage.session
+  try {
+    if (chrome.storage?.session?.setAccessLevel) {
+      chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch((err) => {
+        console.warn('[SAM-Agent] Failed to set session storage access level:', err);
+      });
+    }
+  } catch (err) {
+    console.warn('[SAM-Agent] Error configuring session storage access level:', err);
+  }
+
   // Sync scheduled task alarms on startup and installation
   chrome.runtime.onStartup.addListener(() => {
+    try {
+      if (chrome.storage?.session?.setAccessLevel) {
+        chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch(() => {});
+      }
+    } catch (_) {}
     syncAllTaskAlarms().catch((err) => console.warn('[Scheduler] Startup sync failed:', err));
   });
   chrome.runtime.onInstalled.addListener(() => {
+    try {
+      if (chrome.storage?.session?.setAccessLevel) {
+        chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch(() => {});
+      }
+    } catch (_) {}
     syncAllTaskAlarms().catch((err) => console.warn('[Scheduler] Install sync failed:', err));
   });
 
@@ -202,7 +223,11 @@ export default defineBackground(() => {
       chrome.storage.session?.set({
         scraper_last_result: resultData,
         last_scraper_result: resultData,
-      });
+        scraper_session: resultData,
+      }).catch(() => {});
+      chrome.storage.local?.set({
+        sam_persisted_scraper_result: resultData,
+      }).catch(() => {});
       chrome.runtime.sendMessage({
         type: 'SCRAPER_OPEN_STUDIO',
         ...resultData,
