@@ -92,6 +92,7 @@ export const ScraperToolbar: React.FC<ScraperToolbarProps> = ({
         left: `${position.x}px`,
         top: `${position.y}px`,
         zIndex: 2147483647,
+        pointerEvents: 'auto',
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
       className="sam-scraper-toolbar"

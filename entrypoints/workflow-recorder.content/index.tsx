@@ -22,6 +22,7 @@ export default defineContentScript({
     const initialUrl = window.location.href;
     let inputDebounceTimer: number | null = null;
     let activeInputTarget: HTMLInputElement | HTMLTextAreaElement | null = null;
+    let shadowHostEl: HTMLElement | null = null;
     let containerEl: HTMLElement | null = null;
     let updateHudState: ((newStatus: RecordingStatus, newCount: number) => void) | null = null;
 
@@ -72,16 +73,19 @@ export default defineContentScript({
     };
 
     // Helper: Checks if event target is inside the recorder HUD
-    const isInsideHud = (el: EventTarget | null): boolean => {
-      if (!el || !containerEl) return false;
-      return containerEl.contains(el as Node);
+    const isInsideHud = (e: Event): boolean => {
+      const path = e.composedPath ? e.composedPath() : [];
+      if (shadowHostEl && (path.includes(shadowHostEl) || e.target === shadowHostEl)) return true;
+      if (containerEl && (path.includes(containerEl) || e.target === containerEl)) return true;
+      return false;
     };
 
     // 1. Click Listener (capture phase)
     const handleClick = (e: MouseEvent) => {
       if (status !== 'recording') return;
+      if (isInsideHud(e)) return;
       const target = e.target as HTMLElement | null;
-      if (!target || isInsideHud(target)) return;
+      if (!target) return;
 
       // Flush any pending text input before recording click
       if (inputDebounceTimer && activeInputTarget) {
@@ -120,8 +124,9 @@ export default defineContentScript({
 
     const handleInput = (e: Event) => {
       if (status !== 'recording') return;
+      if (isInsideHud(e)) return;
       const target = e.target as HTMLElement | null;
-      if (!target || isInsideHud(target)) return;
+      if (!target) return;
 
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
         // Skip password field values or mark them
@@ -138,8 +143,9 @@ export default defineContentScript({
     // 3. Dropdowns & Checkboxes Listener
     const handleChange = (e: Event) => {
       if (status !== 'recording') return;
+      if (isInsideHud(e)) return;
       const target = e.target as HTMLElement | null;
-      if (!target || isInsideHud(target)) return;
+      if (!target) return;
 
       if (target instanceof HTMLSelectElement) {
         const cascade = computeSelectorCascade(target);
@@ -214,13 +220,39 @@ export default defineContentScript({
     // Mount Shadow DOM UI
     const ui = await createShadowRootUi(ctx, {
       name: 'sam-workflow-recorder',
-      position: 'modal',
-      zIndex: 2147483647,
+      position: 'inline',
       anchor: 'body',
+      append: 'last',
       isolateEvents: false,
 
-      onMount(container) {
+      onMount(container, shadow, shadowHost) {
+        shadowHostEl = shadowHost;
         containerEl = container;
+
+        shadowHost.style.position = 'fixed';
+        shadowHost.style.top = '0';
+        shadowHost.style.left = '0';
+        shadowHost.style.width = '0';
+        shadowHost.style.height = '0';
+        shadowHost.style.overflow = 'visible';
+        shadowHost.style.zIndex = '2147483647';
+        shadowHost.style.pointerEvents = 'none';
+
+        const shadowHtml = shadow.querySelector('html');
+        if (shadowHtml) {
+          shadowHtml.style.pointerEvents = 'none';
+          shadowHtml.style.background = 'transparent';
+          shadowHtml.style.width = '0';
+          shadowHtml.style.height = '0';
+          shadowHtml.style.overflow = 'visible';
+        }
+
+        container.style.pointerEvents = 'none';
+        container.style.background = 'transparent';
+        container.style.width = '0';
+        container.style.height = '0';
+        container.style.overflow = 'visible';
+
         const root = ReactDOM.createRoot(container);
 
         function HUDWrapper() {

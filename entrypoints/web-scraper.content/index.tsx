@@ -26,17 +26,44 @@ export default defineContentScript({
       return;
     }
 
+    let shadowHostEl: HTMLElement | null = null;
     let containerEl: HTMLElement | null = null;
 
     const ui = await createShadowRootUi(ctx, {
       name: 'sam-web-scraper',
-      position: 'modal',
-      zIndex: 2147483647,
+      position: 'inline',
       anchor: 'body',
+      append: 'last',
       isolateEvents: false,
 
-      onMount(container) {
+      onMount(container, shadow, shadowHost) {
+        shadowHostEl = shadowHost;
         containerEl = container;
+
+        shadowHost.style.position = 'fixed';
+        shadowHost.style.top = '0';
+        shadowHost.style.left = '0';
+        shadowHost.style.width = '0';
+        shadowHost.style.height = '0';
+        shadowHost.style.overflow = 'visible';
+        shadowHost.style.zIndex = '2147483647';
+        shadowHost.style.pointerEvents = 'none';
+
+        const shadowHtml = shadow.querySelector('html');
+        if (shadowHtml) {
+          shadowHtml.style.pointerEvents = 'none';
+          shadowHtml.style.background = 'transparent';
+          shadowHtml.style.width = '0';
+          shadowHtml.style.height = '0';
+          shadowHtml.style.overflow = 'visible';
+        }
+
+        container.style.pointerEvents = 'none';
+        container.style.background = 'transparent';
+        container.style.width = '0';
+        container.style.height = '0';
+        container.style.overflow = 'visible';
+
         const root = ReactDOM.createRoot(container);
 
         function ScraperApp() {
@@ -94,18 +121,24 @@ export default defineContentScript({
 
           // Global mouse hover and click capture
           useEffect(() => {
-            const isInsideShadow = (target: Node | null): boolean => {
-              if (!target || !containerEl) return false;
-              return containerEl.contains(target);
+            const isInsideShadow = (e: MouseEvent): boolean => {
+              const path = e.composedPath ? e.composedPath() : [];
+              if (shadowHostEl && (path.includes(shadowHostEl) || e.target === shadowHostEl)) return true;
+              if (containerEl && (path.includes(containerEl) || e.target === containerEl)) return true;
+              return false;
             };
 
             const handleMouseMove = (e: MouseEvent) => {
+              if (isInsideShadow(e)) {
+                setHoverRect(null);
+                return;
+              }
+
               const target = e.target as HTMLElement | null;
               const currentStep = stepRef.current;
 
               if (
                 !target ||
-                isInsideShadow(target) ||
                 currentStep === 'configured' ||
                 currentStep === 'scraping'
               ) {
@@ -118,8 +151,13 @@ export default defineContentScript({
             };
 
             const handleClick = (e: MouseEvent) => {
+              if (isInsideShadow(e)) {
+                // Click is on the toolbar or inside the shadow root; do not intercept!
+                return;
+              }
+
               const target = e.target as HTMLElement | null;
-              if (!target || isInsideShadow(target)) return;
+              if (!target) return;
 
               const currentStep = stepRef.current;
 
