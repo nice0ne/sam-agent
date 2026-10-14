@@ -97,19 +97,28 @@ export const ToolStudioView: React.FC = () => {
           }
           const rawScraper = res?.scraper_last_result || res?.last_scraper_result || res?.scraper_session;
           if (rawScraper && Array.isArray(rawScraper.rows) && rawScraper.rows.length > 0) {
-            setScraperData({
+            const parsed = {
               rows: rawScraper.rows || [],
               totalRows: rawScraper.totalRows ?? rawScraper.rows?.length ?? 0,
               pagesCrawled: rawScraper.pagesCrawled ?? 1,
               domain: rawScraper.domain || '',
               url: rawScraper.url || '',
               schema: rawScraper.schema,
-            });
+            };
+            setScraperData(parsed);
             setIsScraperModalOpen(true);
             chrome.storage.session.remove(['scraper_last_result', 'last_scraper_result', 'scraper_session']);
+            chrome.storage.local?.set({ sam_persisted_scraper_result: parsed });
           }
         }
       );
+
+      // Also restore any previously saved scrape from local storage
+      chrome.storage.local?.get(['sam_persisted_scraper_result'], (localRes) => {
+        if (localRes?.sam_persisted_scraper_result?.rows?.length) {
+          setScraperData((prev) => prev || localRes.sam_persisted_scraper_result);
+        }
+      });
     }
 
     // Message listener for recording and scraper events
@@ -128,15 +137,17 @@ export const ToolStudioView: React.FC = () => {
         setRecordedStepCount(0);
       } else if (msg.type === 'SCRAPER_OPEN_STUDIO' || msg.type === 'SCRAPER_STUDIO_READY') {
         const rawRows = msg.rows || msg.result?.rows || [];
-        setScraperData({
+        const parsed = {
           rows: rawRows,
           totalRows: msg.totalRows ?? msg.result?.totalRows ?? rawRows.length,
           pagesCrawled: msg.pagesCrawled ?? msg.result?.pagesCrawled ?? 1,
           domain: msg.domain || msg.result?.domain || '',
           url: msg.url || msg.result?.url || '',
           schema: msg.schema || msg.result?.schema,
-        });
+        };
+        setScraperData(parsed);
         setIsScraperModalOpen(true);
+        chrome.storage.local?.set({ sam_persisted_scraper_result: parsed });
       }
     };
 
@@ -768,11 +779,9 @@ export const ToolStudioView: React.FC = () => {
       {/* Visual Web Scraper Studio Modal */}
       <ScraperStudioModal
         isOpen={isScraperModalOpen}
-        onClose={() => {
-          setIsScraperModalOpen(false);
-          setScraperData(null);
-        }}
+        onClose={() => setIsScraperModalOpen(false)}
         data={scraperData}
+        onLaunchScraper={handleStartVisualScraper}
       />
     </div>
   );

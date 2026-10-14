@@ -7,6 +7,7 @@ import {
   inferRepeatingPattern,
   computeRelativeSelector,
   getUniqueSelector,
+  findLCAAndContainers,
 } from '../../src/services/scraper-pattern';
 import {
   ScraperStep,
@@ -183,19 +184,74 @@ export default defineContentScript({
                 setContainerSelector(pattern.containerSelector);
                 setMatchedCount(pattern.matchedCount);
 
-                const tag = target.tagName.toLowerCase();
-                const isImg = tag === 'img';
-                const isLink = tag === 'a' || !!target.closest('a');
+                const detectedFields: ScraperField[] = [];
 
-                const initialField: ScraperField = {
-                  id: 'col-1',
-                  name: isImg ? 'Image' : isLink ? 'Link' : 'Title',
-                  selector: pattern.relativeFieldSelector,
-                  attribute: isImg ? 'src' : isLink && tag === 'a' ? 'href' : 'text',
-                  type: isImg ? 'image' : isLink ? 'url' : 'string',
-                };
+                // 1. Table row (<tr>) auto-detection: extract all columns
+                const lcaData = findLCAAndContainers(el1, target);
+                const sampleContainer = lcaData?.c1 || el1.closest('tr') || el1.parentElement || el1;
 
-                setFields([initialField]);
+                if (sampleContainer && sampleContainer.tagName.toLowerCase() === 'tr') {
+                  const cells = Array.from(sampleContainer.querySelectorAll('td, th')) as HTMLElement[];
+                  const table = sampleContainer.closest('table');
+                  const thElements = table ? Array.from(table.querySelectorAll('thead th, tr:first-child th')) : [];
+
+                  if (cells.length > 0) {
+                    cells.forEach((cell, idx) => {
+                      const rawThName = thElements[idx]?.textContent?.trim() || '';
+                      const headerName = rawThName.length > 0 && rawThName.length < 30 ? rawThName : `Column ${idx + 1}`;
+                      detectedFields.push({
+                        id: `col-${idx + 1}`,
+                        name: headerName,
+                        selector: `td:nth-of-type(${idx + 1}), th:nth-of-type(${idx + 1})`,
+                        attribute: 'text',
+                        type: 'string',
+                      });
+                    });
+                  }
+                }
+
+                // 2. Card / list items auto-detection: extract Title, Link, and Image
+                if (detectedFields.length === 0) {
+                  const tag = target.tagName.toLowerCase();
+                  const isImg = tag === 'img';
+                  const isLink = tag === 'a' || !!target.closest('a');
+
+                  detectedFields.push({
+                    id: 'col-1',
+                    name: isImg ? 'Image' : isLink ? 'Title' : 'Text',
+                    selector: pattern.relativeFieldSelector,
+                    attribute: isImg ? 'src' : 'text',
+                    type: isImg ? 'image' : 'string',
+                  });
+
+                  // If it's a link or sample container has a link, auto-include Link URL
+                  const linkEl = isLink ? (tag === 'a' ? target : target.closest('a')) : sampleContainer.querySelector('a');
+                  if (linkEl && !isImg) {
+                    const linkRel = sampleContainer !== linkEl ? computeRelativeSelector(sampleContainer, linkEl as HTMLElement) : '';
+                    detectedFields.push({
+                      id: 'col-link',
+                      name: 'Link',
+                      selector: linkRel || 'a',
+                      attribute: 'href',
+                      type: 'url',
+                    });
+                  }
+
+                  // If sample container contains an image, auto-include Image column
+                  const imgEl = sampleContainer.querySelector('img');
+                  if (imgEl && !isImg) {
+                    const imgRel = computeRelativeSelector(sampleContainer, imgEl);
+                    detectedFields.push({
+                      id: 'col-img',
+                      name: 'Image',
+                      selector: imgRel || 'img',
+                      attribute: 'src',
+                      type: 'image',
+                    });
+                  }
+                }
+
+                setFields(detectedFields);
                 setStep('configured');
                 setHoverRect(null);
 
@@ -294,58 +350,124 @@ export default defineContentScript({
               delayMs: 1000,
             };
 
-            // Extract rows from current page
-            const containers = Array.from(document.querySelectorAll(containerSelector));
+            // 1. Resolve container elements with fallbacks
+            let containers: HTMLElement[] = [];
+            try {
+              if (containerSelector) {
+                containers = Array.from(document.querySelectorAll(containerSelector)) as HTMLElement[];
+              }
+            } catch (err) {
+              console.warn('[SAM Scraper] containerSelector query failed:', err);
+            }
+
+            if (containers.length === 0 && firstElRef.current) {
+              const el = firstElRef.current;
+              const tr = el.closest('tr');
+              if (tr && tr.parentElement) {
+                containers = Array.from(tr.parentElement.querySelectorAll('tr')) as HTMLElement[];
+              } else if (el.parentElement) {
+                const tag = el.tagName.toLowerCase();
+                containers = Array.from(document.querySelectorAll(tag)) as HTMLElement[];
+              }
+            }
+
             const extractedRows: Record<string, any>[] = [];
 
             for (const card of containers) {
               const row: Record<string, any> = {};
               for (const field of fields) {
-                const el = field.selector ? card.querySelector(field.selector) : card;
-                if (!el) {
-                  row[field.name] = '';
-                  continue;
+                let el: Element | null = null;
+                try {
+                  if (field.selector) {
+                    el = card.querySelector(field.selector);
+                  } else {
+                    el = card;
+                  }
+                } catch (_) {
+                  el = card;
                 }
 
-                if (field.attribute === 'href') {
-                  row[field.name] = (el as HTMLAnchorElement).href || el.getAttribute('href') || '';
-                } else if (field.attribute === 'src') {
-                  row[field.name] =
-                    (el as HTMLImageElement).src ||
-                    el.getAttribute('data-src') ||
-                    el.getAttribute('data-original') ||
-                    el.getAttribute('src') ||
+                // Fallback if specific nested selector wasn't found
+                if (!el) {
+                  if (field.attribute === 'href' || field.type === 'url') {
+                    el = card.querySelector('a') || card;
+                  } else if (field.attribute === 'src' || field.type === 'image') {
+                    el = card.querySelector('img') || card;
+                  } else {
+                    el = card;
+                  }
+                }
+
+                if (field.attribute === 'href' || field.type === 'url') {
+                  const a = el as HTMLAnchorElement;
+                  const href =
+                    a.href ||
+                    a.getAttribute('href') ||
+                    (el.closest('a') as HTMLAnchorElement)?.href ||
+                    (el.querySelector('a') as HTMLAnchorElement)?.href ||
                     '';
+                  row[field.name] = href;
+                } else if (field.attribute === 'src' || field.type === 'image') {
+                  const img = el as HTMLImageElement;
+                  const src =
+                    img.src ||
+                    img.getAttribute('data-src') ||
+                    img.getAttribute('data-original') ||
+                    img.getAttribute('src') ||
+                    (el.querySelector('img') as HTMLImageElement)?.src ||
+                    '';
+                  row[field.name] = src;
                 } else if (field.attribute === 'value') {
                   row[field.name] = (el as HTMLInputElement).value || '';
                 } else {
-                  row[field.name] = el.textContent?.trim() || '';
+                  let text = el.textContent?.trim() || '';
+                  if (!text && el !== card) {
+                    text = card.textContent?.trim() || '';
+                  }
+                  row[field.name] = text;
                 }
               }
-              extractedRows.push(row);
+
+              // Keep row if at least one column has non-empty text
+              const hasContent = Object.values(row).some(
+                (v) => v !== '' && v !== null && v !== undefined
+              );
+              if (hasContent) {
+                extractedRows.push(row);
+              }
             }
 
             setScrapeProgress({ page: 1, rows: extractedRows.length, status: 'Done' });
 
+            const payloadData = {
+              schema,
+              rows: extractedRows,
+              totalRows: extractedRows.length,
+              pagesCrawled: 1,
+              domain: window.location.hostname,
+              url: window.location.href,
+              timestamp: Date.now(),
+            };
+
             try {
-              if (typeof chrome !== 'undefined' && chrome.storage?.session) {
-                await chrome.storage.session.set({
-                  scraper_session: {
-                    schema,
-                    rows: extractedRows,
-                    totalRows: extractedRows.length,
-                    url: window.location.href,
-                    timestamp: Date.now(),
-                  },
+              if (typeof chrome !== 'undefined') {
+                if (chrome.storage?.session) {
+                  await chrome.storage.session.set({
+                    scraper_session: payloadData,
+                    scraper_last_result: payloadData,
+                    last_scraper_result: payloadData,
+                  });
+                }
+                if (chrome.storage?.local) {
+                  await chrome.storage.local.set({
+                    sam_persisted_scraper_result: payloadData,
+                  });
+                }
+                await chrome.runtime.sendMessage({
+                  type: 'SCRAPER_OPEN_STUDIO',
+                  ...payloadData,
                 });
               }
-
-              await chrome.runtime.sendMessage({
-                type: 'SCRAPER_OPEN_STUDIO',
-                schema,
-                rows: extractedRows,
-                url: window.location.href,
-              });
             } catch (err) {
               console.warn('[SAM Scraper] Failed to notify studio:', err);
             }

@@ -38,6 +38,7 @@ export interface ScraperStudioModalProps {
   pagesCrawled?: number;
   domain?: string;
   url?: string;
+  onLaunchScraper?: () => void;
 }
 
 export const ScraperStudioModal: React.FC<ScraperStudioModalProps> = ({
@@ -49,11 +50,18 @@ export const ScraperStudioModal: React.FC<ScraperStudioModalProps> = ({
   pagesCrawled: propsPagesCrawled,
   domain: propsDomain,
   url: propsUrl,
+  onLaunchScraper,
 }) => {
+  // Support loading demo sample data if user opened an empty studio
+  const [demoRows, setDemoRows] = useState<Record<string, any>[] | null>(null);
+
   // Aggregate effective values
   const effectiveRows = useMemo(() => {
+    if (demoRows && (!data?.rows || data.rows.length === 0) && (!propsRows || propsRows.length === 0)) {
+      return demoRows;
+    }
     return data?.rows || propsRows || [];
-  }, [data?.rows, propsRows]);
+  }, [data?.rows, propsRows, demoRows]);
 
   const effectiveTotalRows = data?.totalRows ?? propsTotalRows ?? effectiveRows.length;
   const effectivePagesCrawled = data?.pagesCrawled ?? propsPagesCrawled ?? 1;
@@ -86,6 +94,46 @@ export const ScraperStudioModal: React.FC<ScraperStudioModalProps> = ({
   const [isOpeningExcelStudio, setIsOpeningExcelStudio] = useState(false);
   const [copiedJson, setCopiedJson] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const handleLoadDemoData = () => {
+    setDemoRows([
+      {
+        Rank: 1,
+        Title: 'Artificial Intelligence - An Overview',
+        Category: 'Technology',
+        URL: 'https://en.wikipedia.org/wiki/Artificial_intelligence',
+        Views: '4,820,100',
+      },
+      {
+        Rank: 2,
+        Title: 'Machine Learning Fundamentals & Models',
+        Category: 'Data Science',
+        URL: 'https://en.wikipedia.org/wiki/Machine_learning',
+        Views: '3,150,420',
+      },
+      {
+        Rank: 3,
+        Title: 'Deep Learning & Neural Architectures',
+        Category: 'Deep Learning',
+        URL: 'https://en.wikipedia.org/wiki/Deep_learning',
+        Views: '2,940,800',
+      },
+      {
+        Rank: 4,
+        Title: 'Natural Language Processing and LLMs',
+        Category: 'AI Research',
+        URL: 'https://en.wikipedia.org/wiki/Natural_language_processing',
+        Views: '2,110,650',
+      },
+      {
+        Rank: 5,
+        Title: 'Autonomous Agents & Multi-Agent Systems',
+        Category: 'Robotics & Agents',
+        URL: 'https://en.wikipedia.org/wiki/Intelligent_agent',
+        Views: '1,780,200',
+      },
+    ]);
+  };
 
   // Derive all unique column keys
   const columns = useMemo(() => {
@@ -520,12 +568,38 @@ export const ScraperStudioModal: React.FC<ScraperStudioModalProps> = ({
         {/* Live Data Table Preview */}
         <div className="flex-1 overflow-auto rounded-xl border border-border bg-card min-h-[240px] max-h-[50vh] relative select-text">
           {effectiveRows.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-2">
-              <Table className="size-8 text-muted-foreground/40" />
-              <p className="text-xs text-muted-foreground font-medium">No rows extracted.</p>
-              <p className="text-[11px] text-muted-foreground/70">
-                Run the visual web scraper to extract structured data from target pages.
-              </p>
+            <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-3">
+              <div className="size-12 rounded-2xl bg-muted/60 border border-border/80 flex items-center justify-center text-muted-foreground/80">
+                <Table className="size-6 text-emerald-500" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">Belum Ada Data Ekstraksi</p>
+                <p className="text-xs text-muted-foreground max-w-sm leading-relaxed">
+                  Tabel ini masih kosong. Buka halaman web lalu jalankan <strong>Visual Scraper</strong> untuk mengekstrak data otomatis, atau muat Data Sampel untuk mencoba fitur Studio.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleLoadDemoData}
+                  className="px-3.5 py-1.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 text-xs font-medium cursor-pointer shadow-sm transition-all"
+                >
+                  Muat Data Sampel (Demo)
+                </button>
+                {onLaunchScraper && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onLaunchScraper();
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium cursor-pointer shadow-sm transition-all flex items-center gap-1.5"
+                  >
+                    <Sparkles className="size-3.5" />
+                    Mulai Visual Scraper
+                  </button>
+                )}
+              </div>
             </div>
           ) : filteredAndSortedRows.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-2">
